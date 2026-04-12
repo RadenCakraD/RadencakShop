@@ -1,0 +1,296 @@
+/* Keranjang CSS overlay on Dashboard theme */
+
+.cart-main {
+    max-width: 1000px;
+    margin: 30px auto;
+    padding: 0 20px 120px 20px; /* space for checkout bar */
+}
+
+.cart-group {
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    margin-bottom: 20px;
+    overflow: hidden;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+}
+
+.cart-store-header {
+    display: flex;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--card-border);
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.store-name {
+    color: var(--teks-utama);
+    font-size: 16px;
+    font-weight: 600;
+    margin-left: 8px;
+    text-decoration: none;
+    transition: 0.2s;
+}
+
+.store-name:hover {
+    color: var(--teks-utama);
+}
+
+.cart-item {
+    display: flex;
+    align-items: center;
+    padding: 20px;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.cart-item:last-child {
+    border-bottom: none;
+}
+
+.item-img {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    object-fit: cover;
+    margin: 0 20px;
+    border: 1px solid var(--card-border);
+}
+
+.item-info {
+    flex: 1;
+}
+
+.item-name {
+    font-size: 16px;
+    color: var(--teks-utama);
+    margin-bottom: 5px;
+    line-height: 1.4;
+}
+
+.item-variant {
+    font-size: 13px;
+    color: var(--teks-pendukung);
+    margin-bottom: 8px;
+}
+
+.item-price {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--teks-utama);
+}
+
+.item-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: space-between;
+    height: 80px;
+}
+
+.qty-control {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--card-border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.qty-btn {
+    background: var(--bg-utama);
+    border: none;
+    color: var(--teks-utama);
+    width: 30px;
+    height: 30px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.qty-btn:hover {
+    background: rgba(255,255,255,0.1);
+}
+
+.qty-input {
+    width: 40px;
+    height: 30px;
+    background: var(--card-bg);
+    border: none;
+    border-left: 1px solid var(--card-border);
+    border-right: 1px solid var(--card-border);
+    color: var(--teks-utama);
+    text-align: center;
+    font-size: 14px;
+}
+.qty-input::-webkit-outer-spin-button,
+.qty-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.btn-delete {
+    background: transparent;
+    border: none;
+    color: var(--teks-pendukung);
+    font-size: 18px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn-delete:hover {
+    color: #ff4757;
+}
+
+/* Custom Checkbox */
+.custom-checkbox-wrapper {
+    position: relative;
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+}
+
+.custom-checkbox-wrapper input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.custom-check {
+    position: absolute;
+    top: 0; left: 0;
+    height: 20px; width: 20px;
+    background-color: var(--bg-utama);
+    border: 1px solid var(--teks-pendukung);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.custom-checkbox-wrapper input:checked ~ .custom-check {
+    background-color: var(--teks-utama);
+    border-color: var(--teks-utama);
+}
+
+.custom-check:after {
+    content: "";
+    position: absolute;
+    display: none;
+}
+
+.custom-checkbox-wrapper input:checked ~ .custom-check:after {
+    display: block;
+}
+
+.custom-checkbox-wrapper .custom-check:after {
+    left: 6px;
+    top: 3px;
+    width: 5px;
+    height: 10px;
+    border: solid var(--bg-utama);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+/* Sticky Checkout Bar */
+.checkout-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background-color: var(--card-bg);
+    border-top: 1px solid var(--card-border);
+    padding: 15px 0;
+    box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+    z-index: 100;
+}
+
+.checkout-bar-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.checkout-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.checkout-right {
+    display: flex;
+    align-items: center;
+    gap: 25px;
+}
+
+.total-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.total-label {
+    font-size: 16px;
+    color: var(--teks-utama);
+}
+
+.total-price {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--teks-utama);
+}
+
+.btn-checkout {
+    background-color: var(--teks-utama);
+    color: var(--bg-utama);
+    border: none;
+    padding: 12px 30px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.btn-checkout:hover {
+    background-color: #e5dca5;
+}
+
+.btn-checkout:disabled {
+    background-color: var(--card-border);
+    color: var(--teks-pendukung);
+    cursor: not-allowed;
+}
+
+/* Responsive */
+@media screen and (max-width: 600px) {
+    .cart-item {
+        flex-direction: column;
+        align-items: flex-start;
+        position: relative;
+    }
+    
+    .item-img {
+        margin: 10px 0;
+    }
+
+    .item-actions {
+        flex-direction: row;
+        width: 100%;
+        margin-top: 15px;
+        height: auto;
+    }
+
+    .btn-delete {
+        position: absolute;
+        top: 20px; right: 20px;
+    }
+
+    .checkout-bar-container {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .checkout-right {
+        width: 100%;
+        justify-content: space-between;
+    }
+}
