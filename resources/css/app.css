@@ -1,3 +1,4 @@
+@import url('https://fonts.cdnfonts.com/css/sf-pro-display');
 @import 'tailwindcss';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
@@ -6,6 +7,40 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    --color-rc-bg: #151515;
+    --color-rc-logo: #ffd700;
+    --color-rc-main: #f2e8cf;
+    --color-rc-muted: #a69d8b;
+    --color-rc-card: #1d1d1d;
+
+    --font-sans: 'SF Pro Display', -apple-system, BlinkMacSystemFont, ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+@layer base {
+    html {
+        scroll-behavior: smooth;
+    }
+    body {
+        @apply bg-rc-bg text-rc-main font-sans antialiased text-white/90;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+    /* Menyembunyikan seluruh scrollbar secara global agar layarnya super bersih */
+    ::-webkit-scrollbar {
+        display: none;
+        width: 0px;
+        background: transparent;
+    }
+}
+
+@layer utilities {
+    /* Utility class eksklusif untuk menyembunyikan scrollbar tapi tetap bisa di-scroll */
+    .no-scrollbar {
+        -ms-overflow-style: none; /* IE and Edge */
+        scrollbar-width: none; /* Firefox */
+    }
+    .no-scrollbar::-webkit-scrollbar {
+        display: none; /* Chrome, Safari and Opera */
+    }
 }

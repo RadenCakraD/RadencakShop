@@ -15,10 +15,10 @@ class ShopController extends Controller
             'nama_toko' => 'required|string',
             'url_toko' => 'required|string|unique:shops',
             'slogan' => 'nullable|string',
-            'alamat_toko' => 'required|string',
+            'alamat_toko' => 'nullable|string',
             'kode_negara' => 'nullable|string',
-            'no_telepon' => 'required|string',
-            'kurir' => 'required|array',
+            'no_telepon' => 'nullable|string',
+            'kurir' => 'nullable|array',
             'foto_profil' => 'nullable|image|max:2048',
             'banner_toko' => 'nullable|image|max:2048'
         ]);
@@ -32,9 +32,9 @@ class ShopController extends Controller
         $shop->nama_toko = $request->nama_toko;
         $shop->url_toko = $request->url_toko;
         $shop->slogan = $request->slogan;
-        $shop->alamat_toko = $request->alamat_toko;
-        $shop->no_telepon = $request->kode_negara . $request->no_telepon;
-        $shop->kurir = json_encode($request->kurir);
+        $shop->alamat_toko = $request->alamat_toko ?? '-';
+        $shop->no_telepon = ($request->kode_negara ?? '') . ($request->no_telepon ?? '');
+        $shop->kurir = json_encode($request->kurir ?? []);
 
         if ($request->hasFile('foto_profil')) {
             $shop->foto_profil = $request->file('foto_profil')->store('shops/profiles', 'public');
@@ -46,10 +46,12 @@ class ShopController extends Controller
 
         $shop->save();
 
-        // Update user role to seller
+        // Update user role to toko (hanya jika dia bukan admin)
         $user = $request->user();
-        $user->role = 'seller';
-        $user->save();
+        if($user->role !== 'admin') {
+            $user->role = 'toko';
+            $user->save();
+        }
 
         return response()->json([
             'message' => 'Toko berhasil dibuat!',
@@ -59,7 +61,9 @@ class ShopController extends Controller
 
     public function getMyShop(Request $request)
     {
-        $shop = $request->user()->shop()->with(['products.images', 'products.variants'])->firstOrFail();
+        $shop = $request->user()->shop()
+             ->with(['products.images', 'products.variants', 'orders.items.product'])
+             ->firstOrFail();
         return response()->json($shop);
     }
 
@@ -93,5 +97,45 @@ class ShopController extends Controller
 
         $shop->save();
         return response()->json(['message' => 'Profil berhasil diperbarui', 'shop' => $shop]);
+    }
+
+    public function upgradeTier(Request $request)
+    {
+        $shop = $request->user()->shop;
+        if (!$shop) return response()->json(['message' => 'Toko tidak ditemukan'], 404);
+        
+        $shop->shop_tier = 'raden';
+        $shop->save();
+        
+        return response()->json(['message' => 'Toko berhasil diverifikasi menjadi Raden!', 'shop' => $shop]);
+    }
+
+    public function updateOrderStatus(Request $request, $orderId)
+    {
+        $shop = $request->user()->shop;
+        if (!$shop) return response()->json(['message' => 'Toko tidak ditemukan'], 404);
+
+        $request->validate(['status' => 'required|in:processing,shipped']);
+
+        $order = \App\Models\Order::where('id', $orderId)->where('shop_id', $shop->id)->firstOrFail();
+        
+        $order->status = $request->status;
+        $order->save();
+
+        return response()->json(['message' => 'Status pesanan diperbarui menjadi ' . $order->status, 'order' => $order]);
+    }
+
+    public function getProfit(Request $request) 
+    {
+        $shop = $request->user()->shop;
+        if (!$shop) return response()->json(['message' => 'Toko tidak ditemukan'], 404);
+
+        $completedOrders = clone \App\Models\Order::where('shop_id', $shop->id)->where('status', 'completed');
+        $totalProfit = $completedOrders->sum('total_amount');
+        
+        return response()->json([
+            'total_profit' => $totalProfit,
+            'completed_orders_count' => $completedOrders->count()
+        ]);
     }
 }

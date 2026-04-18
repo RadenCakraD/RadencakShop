@@ -1,31 +1,32 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Models\Product;
 
-Route::view('/', 'Dashboard_Shop')->name('dashboard');
+// KUNCI UTAMA SPA: Tangkap semua navigasi dan serahkan ke React Router
+Route::get('/{any}', function ($any = '') {
+    $seo = [
+        'title' => 'Radencak Shop - AAA E-Commerce',
+        'description' => 'Platform Jual Beli Premium dengan pengalaman UI terbaik dan transaksi kilat Midtrans.',
+        'image' => url('/favicon.ico')
+    ];
 
-Route::view('/login', 'Auth.Login')->name('login');
+    if (str_starts_with($any, 'product/')) {
+        $slug = explode('/', $any)[1] ?? '';
+        $product = Product::with('images')->where('slug', $slug)->first();
+        if ($product) {
+            $seo['title'] = $product->nama_produk . ' | Radencak Shop';
+            $seo['description'] = substr(strip_tags($product->deskripsi), 0, 150) . '...';
+            if ($product->images->count() > 0) {
+                $primaryImg = $product->images->where('is_primary', true)->first();
+                $imgUrl = $primaryImg ? $primaryImg->image_url : $product->images->first()->image_url;
+                if (!str_starts_with($imgUrl, 'http')) {
+                    $imgUrl = asset('storage/' . $imgUrl);
+                }
+                $seo['image'] = $imgUrl;
+            }
+        }
+    }
 
-Route::view('/daftar', 'Auth.daftar')->name('daftar');
-
-Route::view('/daftar-toko', 'Auth.daftarToko')->name('daftar.toko');
-
-Route::view('/chat', 'Chat.Chat_shop')->name('chat');
-
-Route::view('/informasi', 'Information.informasi')->name('informasi');
-
-Route::view('/keranjang', 'Keranjang.keranjang')->name('keranjang');
-
-Route::view('/profile', 'profile')->name('profile');
-
-Route::view('/mytoko', 'MyToko.myToko')->name('mytoko');
-
-Route::get('/product/{slug}', function ($slug) {
-    return view('Product_shop', ['slug' => $slug]);
-})->name('product');
-
-Route::get('/toko/{id?}', function ($id = null) {
-    return view('Toko_shop', ['id' => $id]);
-})->name('toko');
-
-Route::view('/pembayaran', 'Pembayaran')->name('pembayaran');
+    return view('react_app', compact('seo'));
+})->where('any', '.*');

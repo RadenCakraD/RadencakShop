@@ -36,6 +36,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/shop/product/add', [ProductController::class, 'store']); // Tambah produk dari MyToko
     Route::post('/shop/product/update/{id}', [ProductController::class, 'update']);
     Route::delete('/shop/product/{id}', [ProductController::class, 'destroy']);
+    Route::post('/shop/verify', [ShopController::class, 'upgradeTier']);
+    Route::post('/shop/orders/{id}/status', [ShopController::class, 'updateOrderStatus']);
+    Route::get('/shop/profit', [ShopController::class, 'getProfit']);
 
     // Chat API
     Route::get('/chat', [\App\Http\Controllers\Api\ChatController::class, 'index']);
@@ -49,10 +52,34 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/cart/{cart}', [CartController::class, 'update']);
     Route::delete('/cart/{cart}', [CartController::class, 'destroy']);
 
+    // Vouchers
+    Route::get('/vouchers', [\App\Http\Controllers\Api\VoucherController::class, 'index']);
+    Route::post('/vouchers', [\App\Http\Controllers\Api\VoucherController::class, 'store']);
+    Route::delete('/vouchers/{id}', [\App\Http\Controllers\Api\VoucherController::class, 'destroy']);
+    Route::post('/vouchers/check', [\App\Http\Controllers\Api\VoucherController::class, 'check']);
+
     // Checkout
     Route::post('/checkout', [CheckoutController::class, 'process']);
+    Route::post('/checkout/verify-bank', [CheckoutController::class, 'verifyBank']);
 
     // Orders & Activity
     Route::get('/orders', [UserActivityController::class, 'orders']);
     Route::post('/orders/{order}/receive', [UserActivityController::class, 'receive']);
+    Route::post('/orders/{order}/review', [UserActivityController::class, 'storeReview']);
+
+    // Admin & Courier
+    Route::get('/admin/users', [\App\Http\Controllers\Api\AdminController::class, 'getAllUsers']);
+    Route::put('/admin/users/{id}/role', [\App\Http\Controllers\Api\AdminController::class, 'updateUserRole']);
+    Route::get('/admin/shipped-orders', [\App\Http\Controllers\Api\AdminController::class, 'getShippedOrders']);
+    Route::post('/admin/orders/{id}/delivered', [\App\Http\Controllers\Api\AdminController::class, 'markAsDelivered']);
+    Route::get('/admin/banners', [\App\Http\Controllers\Api\AdminController::class, 'getBanners']);
+    Route::post('/admin/banners', [\App\Http\Controllers\Api\AdminController::class, 'storeBanner']);
+    Route::post('/admin/banners/reorder', [\App\Http\Controllers\Api\AdminController::class, 'reorderBanners']);
+    Route::post('/admin/banners/{id}', [\App\Http\Controllers\Api\AdminController::class, 'updateBanner']);
+    Route::delete('/admin/banners/{id}', [\App\Http\Controllers\Api\AdminController::class, 'destroyBanner']);
+    Route::get('/admin/products', [\App\Http\Controllers\Api\AdminController::class, 'fetchAllProducts']);
+    Route::post('/admin/products/{id}/flash-sale', [\App\Http\Controllers\Api\AdminController::class, 'toggleFlashSale']);
 });
+
+// Admin public API
+Route::get('/banners/active', [\App\Http\Controllers\Api\AdminController::class, 'getActiveBanners']);

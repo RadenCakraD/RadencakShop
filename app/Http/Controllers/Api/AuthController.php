@@ -14,12 +14,12 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'email' => 'required|email|unique:users',
+            'email' => 'required|email',
             'username' => 'required|string|unique:users',
             'nohp' => 'required|string',
             'country_code' => 'nullable|string',
-            'alamat' => 'required|string',
-            'password' => 'required|min:8',
+            'alamat' => 'nullable|string',
+            'password' => 'required|min:8|confirmed',
             'avatar' => 'nullable|image|max:2048'
         ]);
 
@@ -27,7 +27,7 @@ class AuthController extends Controller
             'email' => $request->email,
             'username' => $request->username,
             'no_hp' => $request->country_code . $request->nohp,
-            'alamat' => $request->alamat,
+            'alamat' => $request->alamat ?? '',
             'password' => Hash::make($request->password),
             'name' => $request->username,
             'avatar' => $request->hasFile('avatar') ? $request->file('avatar')->store('users/avatars', 'public') : null
@@ -45,16 +45,17 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
+            'email' => 'required|email',
             'username' => 'required|string',
             'password' => 'required|string'
         ]);
 
-        $user = User::where('username', $request->username)
-                    ->orWhere('email', $request->username)
+        $user = User::where('email', $request->email)
+                    ->where('username', $request->username)
                     ->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json(['message' => 'Username/Email atau Password salah!'], 401);
+            return response()->json(['message' => 'Email, Username, atau Password salah!'], 401);
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
