@@ -164,15 +164,9 @@ export default function Cart() {
                                 const isSelected = selectedItems.includes(idStr);
                                 const isProcessing = processingId === item.id;
 
-                                const primaryImgObj = item.product.images?.find(i => i.is_primary);
-                                let imgUrl = "https://picsum.photos/seed/placeholder/200/200";
-                                if (item.variant && item.variant.image_url) {
-                                    imgUrl = `/storage/${item.variant.image_url}`;
-                                } else if (primaryImgObj) {
-                                    imgUrl = `/storage/${primaryImgObj.image_url}`;
-                                } else if (item.product.images && item.product.images.length > 0) {
-                                    imgUrl = `/storage/${item.product.images[0].image_url}`;
-                                }
+                                const imgUrl = item.variant && item.variant.image_url 
+                                    ? `/storage/${item.variant.image_url}` 
+                                    : item.product.primary_image;
 
                                 return (
                                     <div key={item.id} className={`p-6 flex gap-4 ${idx !== cartItems.length - 1 ? 'border-b-[0.5px] border-rc-main/20' : ''} ${isProcessing ? 'opacity-50 pointer-events-none' : ''}`}>

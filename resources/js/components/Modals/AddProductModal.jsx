@@ -8,6 +8,7 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, initialPro
     const [images, setImages] = useState([]);
     const [variants, setVariants] = useState([]);
     const [existingImages, setExistingImages] = useState([]);
+    const [deletedImageIds, setDeletedImageIds] = useState([]);
     
     const [formData, setFormData] = useState({
         nama_produk: '', kategori: 'Elektronik', kondisi: 'baru', 
@@ -53,7 +54,21 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, initialPro
             setVariants([]);
             setImages([]);
             setExistingImages([]);
+            setDeletedImageIds([]);
         }
+
+        // PHYSICAL RESET: Ensure input file is empty on mount/change
+        const fileInput = document.getElementById('product-image-input');
+        if (fileInput) fileInput.value = '';
+
+        return () => {
+            // Cleanup on Unmount
+            setImages([]);
+            setExistingImages([]);
+            setDeletedImageIds([]);
+            const fileInput = document.getElementById('product-image-input');
+            if (fileInput) fileInput.value = '';
+        };
     }, [initialProduct, isOpen]);
 
     const handleInput = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -65,6 +80,11 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, initialPro
     
     const removeImage = (index) => {
         setImages((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const handleRemoveExistingImage = (id) => {
+        setDeletedImageIds((prev) => [...prev, id]);
+        setExistingImages((prev) => prev.filter((img) => img.id !== id));
     };
 
     const addVariantRow = () => {
@@ -85,6 +105,7 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, initialPro
         Object.keys(formData).forEach(key => data.append(key, formData[key]));
         
         images.forEach((file) => data.append('images[]', file));
+        deletedImageIds.forEach((id) => data.append('deleted_image_ids[]', id));
         
         if (variants.length === 0 && initialProduct) {
              data.append('clear_variants', 1);
@@ -134,8 +155,9 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, initialPro
                             <label className="font-semibold text-rc-main block">Foto Produk</label>
                             <div className="flex flex-wrap gap-4 items-start">
                                 {existingImages.map((img) => (
-                                    <div key={img.id} className="relative w-20 h-20 rounded-lg overflow-hidden border-[0.5px] border-rc-main/30 shadow-sm opacity-50">
+                                    <div key={img.id} className="relative w-20 h-20 rounded-lg overflow-hidden border-[0.5px] border-rc-main/30 shadow-sm">
                                         <img src={`/storage/${img.image_url}`} className="w-full h-full object-cover" />
+                                        <button type="button" onClick={() => handleRemoveExistingImage(img.id)} className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-80 hover:opacity-100">&times;</button>
                                     </div>
                                 ))}
                                 {images.map((img, i) => (
@@ -146,7 +168,7 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, initialPro
                                 ))}
                                 <label className="w-20 h-20 border-[2px] border-dashed border-rc-main/30 hover:border-rc-logo rounded-lg flex items-center justify-center cursor-pointer bg-rc-card hover:bg-rc-bg transition text-rc-logo">
                                     <i className="fa-solid fa-plus text-xl"></i>
-                                    <input type="file" multiple accept="image/*" onChange={handleImageChange} className="hidden" />
+                                    <input id="product-image-input" type="file" multiple accept="image/*" onChange={handleImageChange} className="hidden" />
                                 </label>
                             </div>
                         </div>

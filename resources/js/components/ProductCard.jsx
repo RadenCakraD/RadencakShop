@@ -2,10 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 
 export default function ProductCard({ product, onEdit, onDelete, hideActions = false }) {
-    const primaryImgObj = product.images?.find(i => i.is_primary);
-    const primaryImg = primaryImgObj 
-        ? `/storage/${primaryImgObj.image_url}` 
-        : (product.images && product.images.length > 0 ? `/storage/${product.images[0].image_url}` : "https://picsum.photos/seed/placeholder/300/300");
+    const primaryImg = product.primary_image;
     
     // Perbaikan Bug Harga: Membedakan logic harga dicoret.
     const hargaJual = parseFloat(product.harga_jual);

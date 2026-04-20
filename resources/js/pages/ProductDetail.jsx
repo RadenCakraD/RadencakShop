@@ -135,7 +135,7 @@ export default function ProductDetail() {
             if (v.image_url) allImages.push({ image_url: v.image_url, is_variant: true, var_id: v.id });
         });
     }
-    const defaultImgUrl = "https://picsum.photos/seed/placeholder/600/600";
+    const defaultImgUrl = "/logo_web/no-product.png";
 
     return (
         <div className="bg-rc-bg min-h-screen pb-16 text-rc-main font-sans">

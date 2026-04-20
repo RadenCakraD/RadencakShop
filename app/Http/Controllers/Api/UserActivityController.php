@@ -73,19 +73,80 @@ class UserActivityController extends Controller
 
         $user = $request->user();
         
-        // Verify order belongs to user and is completed
         $order = Order::where('id', $id)
             ->where('user_id', $user->id)
             ->where('status', 'completed')
             ->firstOrFail();
             
-        // Validasi apakah produk ada di dalam order_items ini dan sudah/belum di review? 
-        // Untuk penyederhanaan cepat, kita izinkan multiple reviews tapi update jika udah ada (opsional).
         $review = Review::updateOrCreate(
             ['user_id' => $user->id, 'order_id' => $order->id, 'product_id' => $request->product_id],
             ['rating' => $request->rating, 'comment' => $request->comment]
         );
 
         return response()->json(['message' => 'Penilaian berhasil disimpan!', 'review' => $review]);
+    }
+
+    /**
+     * Cancel a pending order, restock products and restore voucher
+     */
+    public function cancel(Request $request, $id)
+    {
+        $user = $request->user();
+        
+        $order = Order::with(['items'])->where('id', $id)
+            ->where('user_id', $user->id)
+            ->where('status', 'pending')
+            ->firstOrFail();
+
+        // Cari semua order yang berasal dari checkout yang sama (berdasarkan snap_token)
+        if ($order->snap_token) {
+            $relatedOrders = Order::with(['items'])
+                ->where('snap_token', $order->snap_token)
+                ->where('user_id', $user->id)
+                ->where('status', 'pending')
+                ->get();
+        } else {
+            $relatedOrders = collect([$order]);
+        }
+
+        \DB::beginTransaction();
+        try {
+            foreach ($relatedOrders as $ro) {
+                // 1. Restock Products
+                foreach ($ro->items as $item) {
+                    if ($item->variant_id) {
+                        $variant = \App\Models\ProductVariant::find($item->variant_id);
+                        if ($variant) {
+                            $variant->increment('stok', $item->qty);
+                        }
+                    } else {
+                        $product = \App\Models\Product::find($item->product_id);
+                        if ($product) {
+                            $product->increment('stok', $item->qty);
+                        }
+                    }
+                }
+
+                // 2. Restore Voucher if any
+                if ($ro->voucher_code) {
+                    // Cek agar restore voucher tidak redundan jika kode voucher sama
+                    // (Asumsikan voucher di-generate per-toko atau global tapi kuota telah dikurangi)
+                    $voucher = \App\Models\Voucher::where('code', $ro->voucher_code)->first();
+                    if ($voucher) {
+                        $voucher->increment('kuota', 1);
+                    }
+                }
+
+                // 3. Update Status
+                $ro->status = 'cancelled';
+                $ro->save();
+            }
+
+            \DB::commit();
+            return response()->json(['message' => 'Pesanan berhasil dibatalkan dan stok telah dikembalikan.']);
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            return response()->json(['message' => 'Gagal membatalkan pesanan: ' . $e->getMessage()], 500);
+        }
     }
 }

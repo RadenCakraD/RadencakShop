@@ -6,7 +6,7 @@ use App\Models\Product;
 // KUNCI UTAMA SPA: Tangkap semua navigasi dan serahkan ke React Router
 Route::get('/{any}', function ($any = '') {
     $seo = [
-        'title' => 'Radencak Shop - AAA E-Commerce',
+        'title' => 'Radencak Shop',
         'description' => 'Platform Jual Beli Premium dengan pengalaman UI terbaik dan transaksi kilat Midtrans.',
         'image' => url('/favicon.ico')
     ];

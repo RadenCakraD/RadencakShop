@@ -1,15 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import axios from 'axios';
 
 export default function Information() {
     const navigate = useNavigate();
-    
+    const location = useLocation();
+
+    const searchParams = new URLSearchParams(location.search);
+    const initialTab = searchParams.get('tab') || 'pending';
+
     // States
     const [orders, setOrders] = useState({ pending: [], processing: [], shipped: [], completed: [] });
     const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('pending');
-    
+    const [activeTab, setActiveTab] = useState(initialTab);
+
     // Review Modal States
     const [isReviewOpen, setIsReviewOpen] = useState(false);
     const [reviewForm, setReviewForm] = useState({ order_id: null, product_id: null, rating: 5, comment: '' });
@@ -37,6 +41,19 @@ export default function Information() {
     useEffect(() => {
         fetchOrders();
     }, []);
+
+    const handleBatalBayar = async (id) => {
+        if (!window.confirm("Apakah Anda yakin ingin membatalkan pesanan ini?\n\nPerhatian: Jika pesanan ini di-checkout bersamaan dengan toko lain (satu kali bayar), maka membatalkan pesanan ini JUGA akan membatalkan pesanan dari toko lain tersebut secara otomatis. Stok akan dikembalikan ke toko.")) return;
+        try {
+            await axios.post(`/api/orders/${id}/cancel`, {}, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+            });
+            alert("Pesanan berhasil dibatalkan.");
+            fetchOrders();
+        } catch (err) {
+            alert("Gagal membatalkan: " + (err.response?.data?.message || err.message));
+        }
+    };
 
     const handleTerimaPesanan = async (id) => {
         if (!window.confirm("Apakah Anda yakin telah menerima pesanan ini dengan baik?")) return;
@@ -103,12 +120,12 @@ export default function Information() {
             </div>
 
             <div className="max-w-4xl mx-auto px-4 sm:px-6 mt-8 space-y-8">
-                
+
                 {/* Order Tracking Tabs */}
                 <div className="bg-gradient-to-br from-rc-card/60 to-rc-bg backdrop-blur-md rounded-2xl border-[0.5px] border-rc-main/10 shadow-[0_4px_20px_-5px_rgba(0,0,0,0.2)]">
                     <div className="flex justify-between md:justify-start overflow-x-auto custom-scrollbar border-b-[0.5px] border-rc-main/10 p-2">
                         {tabConfig.map(tab => (
-                            <button 
+                            <button
                                 key={tab.key}
                                 onClick={() => setActiveTab(tab.key)}
                                 className={`flex-1 md:flex-none flex items-center justify-center gap-2 px-6 py-3 text-sm transition-all duration-300 whitespace-nowrap rounded-lg ${activeTab === tab.key ? 'bg-rc-logo/10 text-rc-logo font-medium tracking-wide shadow-[0_0_10px_rgba(255,215,0,0.05)]' : 'text-rc-muted font-light hover:text-rc-main'}`}
@@ -140,12 +157,12 @@ export default function Information() {
                                             </div>
                                             <div className="text-[10px] text-rc-muted font-light tabular-nums bg-rc-main/5 px-2 py-1 rounded">No: RDN-{order.id.toString().padStart(6, '0')}</div>
                                         </div>
-                                        
+
                                         <div className="space-y-3">
                                             {order.items?.map((item, idx) => (
                                                 <div key={idx} className="flex gap-4 items-center">
                                                     <div className="w-16 h-16 bg-rc-card rounded shadow-inner border-[0.5px] border-rc-main/5 overflow-hidden flex-shrink-0">
-                                                        <img src={`/storage/${item.product?.image || 'placeholder.jpg'}`} className="w-full h-full object-cover" onError={e => e.target.src='https://picsum.photos/100'} />
+                                                        <img src={item.product?.primary_image} className="w-full h-full object-cover" />
                                                     </div>
                                                     <div className="flex-grow">
                                                         <h4 className="text-sm font-light text-rc-main mb-1 truncate">{item.product_name}</h4>
@@ -162,7 +179,7 @@ export default function Information() {
                                                 </div>
                                             ))}
                                         </div>
-                                        
+
                                         <div className="mt-4 pt-4 border-t-[0.5px] border-rc-main/10 flex justify-between items-end">
                                             <div className="text-xs font-light text-rc-muted">
                                                 Total Pesanan:
@@ -174,8 +191,37 @@ export default function Information() {
 
                                         {/* Aksi berdasarkan status */}
                                         {activeTab === 'pending' && (
-                                            <div className="mt-4 flex justify-end">
-                                                <Link to="/pembayaran" className="text-xs uppercase font-light tracking-widest border-[0.5px] border-rc-logo text-rc-logo px-4 py-2 rounded shadow-sm hover:bg-rc-logo/10 transition">Lanjut Bayar</Link>
+                                            <div className="mt-4 flex justify-end gap-3">
+                                                <button onClick={() => handleBatalBayar(order.id)} className="text-xs uppercase font-light tracking-widest border-[0.5px] border-red-500/50 text-red-500 px-4 py-2 rounded shadow-sm hover:bg-red-500/10 transition">Batal Pesanan</button>
+                                                {order.snap_token ? (
+                                                    <button 
+                                                        onClick={() => {
+                                                            if (!window.snap) {
+                                                                alert("Gagal memuat sistem pembayaran! Pastikan Anda mematikan AdBlocker atau refresh halaman ini.");
+                                                                return;
+                                                            }
+                                                            window.snap.pay(order.snap_token, {
+                                                                onSuccess: async () => { 
+                                                                    try {
+                                                                        await axios.post('/api/checkout/success-prototype', { snap_token: order.snap_token }, {
+                                                                            headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+                                                                        });
+                                                                    } catch(e) {}
+                                                                    alert("Pembayaran berhasil!"); 
+                                                                    setActiveTab('processing');
+                                                                    fetchOrders(); 
+                                                                },
+                                                                onPending: () => { alert("Menunggu pembayaran Anda."); },
+                                                                onError: () => { alert("Pembayaran gagal."); }
+                                                            });
+                                                        }} 
+                                                        className="text-xs uppercase font-light tracking-widest border-[0.5px] border-rc-logo text-rc-logo px-4 py-2 rounded shadow-sm hover:bg-rc-logo/10 transition"
+                                                    >
+                                                        Lanjut Bayar
+                                                    </button>
+                                                ) : (
+                                                    <Link to="/pembayaran" className="text-xs uppercase font-light tracking-widest border-[0.5px] border-rc-logo text-rc-logo px-4 py-2 rounded shadow-sm hover:bg-rc-logo/10 transition">Lanjut Bayar</Link>
+                                                )}
                                             </div>
                                         )}
                                         {activeTab === 'shipped' && (
@@ -215,10 +261,10 @@ export default function Information() {
                         <form onSubmit={submitReview}>
                             <div className="mb-6 flex justify-center gap-2 text-3xl">
                                 {[1, 2, 3, 4, 5].map((star) => (
-                                    <button 
-                                        type="button" 
-                                        key={star} 
-                                        onClick={() => setReviewForm({...reviewForm, rating: star})}
+                                    <button
+                                        type="button"
+                                        key={star}
+                                        onClick={() => setReviewForm({ ...reviewForm, rating: star })}
                                         className={`transition-all duration-300 ${star <= reviewForm.rating ? 'text-rc-logo drop-shadow-[0_0_8px_rgba(255,215,0,0.5)] scale-110' : 'text-rc-main/20 hover:text-rc-logo/50'}`}
                                     >
                                         <i className="fa-solid fa-star"></i>
@@ -227,12 +273,12 @@ export default function Information() {
                             </div>
                             <div className="mb-6">
                                 <label className="block text-[10px] uppercase font-light tracking-widest text-rc-muted mb-2">Komentar Singkat</label>
-                                <textarea 
-                                    className="w-full bg-transparent border-[0.5px] border-rc-main/20 rounded text-rc-main p-3 text-sm focus:border-rc-logo outline-none transition custom-scrollbar font-light" 
-                                    rows="3" 
-                                    placeholder="Sangat memuaskan..." 
+                                <textarea
+                                    className="w-full bg-transparent border-[0.5px] border-rc-main/20 rounded text-rc-main p-3 text-sm focus:border-rc-logo outline-none transition custom-scrollbar font-light"
+                                    rows="3"
+                                    placeholder="Sangat memuaskan..."
                                     value={reviewForm.comment}
-                                    onChange={(e) => setReviewForm({...reviewForm, comment: e.target.value})}
+                                    onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
                                 ></textarea>
                             </div>
                             <div className="flex justify-end gap-3">

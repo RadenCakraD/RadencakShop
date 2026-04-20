@@ -149,21 +149,37 @@ class ProductController extends Controller
                     $product->save();
                 }
 
-                // Image replacement (Overwrite existing)
-                if ($request->hasFile('images')) {
-                    $oldImages = \App\Models\ProductImage::where('product_id', $product->id)->get();
-                    foreach($oldImages as $oldImage) {
-                        Storage::disk('public')->delete($oldImage->image_url);
+                // 1. Handle Surgical Deletion of Images
+                if ($request->has('deleted_image_ids') && is_array($request->deleted_image_ids)) {
+                    foreach ($request->deleted_image_ids as $imgId) {
+                        $image = \App\Models\ProductImage::where('id', $imgId)->where('product_id', $product->id)->first();
+                        if ($image) {
+                            Storage::disk('public')->delete($image->image_url);
+                            $image->delete();
+                        }
                     }
-                    \App\Models\ProductImage::where('product_id', $product->id)->delete();
-                    
-                    foreach ($request->file('images') as $index => $file) {
+                }
+
+                // 2. Handle New Image Uploads (Appending)
+                if ($request->hasFile('images')) {
+                    foreach ($request->file('images') as $file) {
                         $path = $file->store('products', 'public');
                         ProductImage::create([
                             'product_id' => $product->id,
-                            'is_primary' => ($index == 0),
+                            'is_primary' => false, // Will re-evaluate below
                             'image_url' => $path
                         ]);
+                    }
+                }
+
+                // 3. Ensure a Primary Image exists
+                $images = \App\Models\ProductImage::where('product_id', $product->id)->get();
+                if ($images->count() > 0) {
+                    $hasPrimary = $images->where('is_primary', true)->count() > 0;
+                    if (!$hasPrimary) {
+                        $first = $images->first();
+                        $first->is_primary = true;
+                        $first->save();
                     }
                 }
 

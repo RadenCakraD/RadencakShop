@@ -60,10 +60,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Checkout
     Route::post('/checkout', [CheckoutController::class, 'process']);
+    Route::post('/checkout/success-prototype', [CheckoutController::class, 'successPrototype']);
     Route::post('/checkout/verify-bank', [CheckoutController::class, 'verifyBank']);
 
     // Orders & Activity
     Route::get('/orders', [UserActivityController::class, 'orders']);
+    Route::post('/orders/{order}/cancel', [UserActivityController::class, 'cancel']);
     Route::post('/orders/{order}/receive', [UserActivityController::class, 'receive']);
     Route::post('/orders/{order}/review', [UserActivityController::class, 'storeReview']);
 

@@ -87,7 +87,7 @@ class CheckoutController extends Controller
                     'user_id' => $user->id,
                     'shop_id' => $shopId,
                     'order_number' => 'ORD-' . strtoupper(Str::random(10)),
-                    'status' => 'pending',
+                    'status' => 'processing',
                     'total_amount' => max(0, $totalAmount - $appliedDiscount),
                     'address_info' => $request->address_info ?? 'Alamat Default User',
                     'payment_method' => $request->payment_method ?? 'Transfer Bank',
@@ -154,6 +154,12 @@ class CheckoutController extends Controller
                     ->post('https://app.sandbox.midtrans.com/snap/v1/transactions', $midtransPayload);
 
                 $snapToken = $response->json('token');
+
+                if ($snapToken) {
+                    foreach ($orders as $o) {
+                        $o->update(['snap_token' => $snapToken]);
+                    }
+                }
             }
 
             return response()->json([
@@ -166,6 +172,17 @@ class CheckoutController extends Controller
             DB::rollback();
             return response()->json(['message' => 'Gagal checkout: ' . $e->getMessage()], 500);
         }
+    }
+
+    public function successPrototype(Request $request)
+    {
+        $request->validate(['snap_token' => 'required|string']);
+        
+        Order::where('snap_token', $request->snap_token)
+             ->where('status', 'pending')
+             ->update(['status' => 'processing']);
+             
+        return response()->json(['message' => 'Status pesanan berhasil diperbarui ke Diproses']);
     }
 
     public function verifyBank(Request $request)

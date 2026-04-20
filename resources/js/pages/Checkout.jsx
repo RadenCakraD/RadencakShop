@@ -122,27 +122,34 @@ export default function Checkout() {
             if (res.data.snap_token) {
                 // Trigger Midtrans Snap Popup
                 window.snap.pay(res.data.snap_token, {
-                    onSuccess: function (result) {
+                    onSuccess: async function (result) {
+                        try {
+                            await axios.post('/api/checkout/success-prototype', { snap_token: res.data.snap_token }, {
+                                headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+                            });
+                        } catch(e) {}
                         toast.success("Pembayaran berhasil!");
                         localStorage.removeItem('checkout_items');
-                        navigate('/dashboard');
+                        navigate('/informasi?tab=processing');
                     },
                     onPending: function (result) {
                         toast.loading("Menunggu pembayaran Anda!");
                         localStorage.removeItem('checkout_items');
-                        navigate('/toko'); // redirect to orders later
+                        navigate('/informasi?tab=pending');
                     },
                     onError: function (result) {
                         toast.error("Pembayaran gagal!");
                     },
                     onClose: function () {
                         toast.error('Gagal: Anda menutup popup tanpa menyelesaikan pembayaran');
+                        localStorage.removeItem('checkout_items');
+                        navigate('/informasi?tab=pending');
                     }
                 });
             } else {
-                toast.success('Pesanan Berhasil Dibuat Secara COD/Tanpa Token.');
+                toast.success('Pesanan Berhasil Dibuat Secara COD.');
                 localStorage.removeItem('checkout_items');
-                navigate('/dashboard');
+                navigate('/informasi?tab=processing'); // COD usually goes to processing immediately
             }
         } catch (err) {
             toast.error(err.response?.data?.message || 'Gagal membuat pesanan');
@@ -251,15 +258,9 @@ export default function Checkout() {
                         </div>
                         {checkoutItems.map((item, idx) => {
                             const price = item.variant ? parseFloat(item.variant.harga_jual) : parseFloat(item.product.harga_jual);
-                            const primaryImgObj = item.product.images?.find(i => i.is_primary);
-                            let imgUrl = "https://picsum.photos/seed/placeholder/200/200";
-                            if (item.variant && item.variant.image_url) {
-                                imgUrl = `/storage/${item.variant.image_url}`;
-                            } else if (primaryImgObj) {
-                                imgUrl = `/storage/${primaryImgObj.image_url}`;
-                            } else if (item.product.images && item.product.images.length > 0) {
-                                imgUrl = `/storage/${item.product.images[0].image_url}`;
-                            }
+                            const imgUrl = item.variant && item.variant.image_url
+                                ? `/storage/${item.variant.image_url}`
+                                : item.product?.primary_image;
 
                             return (
                                 <div key={item.id} className={`p-6 flex gap-4 hover:bg-rc-bg/50 transition ${idx !== checkoutItems.length - 1 ? 'border-b-[0.5px] border-dashed border-rc-main/20' : ''}`}>

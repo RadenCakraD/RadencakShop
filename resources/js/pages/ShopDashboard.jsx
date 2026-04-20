@@ -126,7 +126,7 @@ export default function ShopDashboard() {
         <div className="bg-rc-bg min-h-screen text-rc-main font-sans pb-16">
             
             {/* Header / Banner - Clean & Simple */}
-            <div className="w-full h-[250px] md:h-[300px] bg-cover bg-center relative" style={{ backgroundImage: `url(${shopData.banner_toko ? '/storage/' + shopData.banner_toko : 'https://picsum.photos/1200/300'})` }}>
+            <div className="w-full h-[250px] md:h-[300px] bg-cover bg-center relative" style={{ backgroundImage: `url(${shopData.banner_toko ? '/storage/' + shopData.banner_toko : '/logo_web/no-product.png'})` }}>
                 {/* Overlay Hitam Halus untuk memastikan teks di bawahnya bisa dibaca */}
                 <div className="absolute inset-0 bg-rc-bg/40"></div>
                 
@@ -140,7 +140,7 @@ export default function ShopDashboard() {
                 {/* Profile Section - Minimalist */}
                 <div className="absolute -bottom-12 left-4 md:left-10 flex items-end space-x-5 z-10">
                     <div className="relative">
-                        <img src={shopData.foto_profil ? '/storage/' + shopData.foto_profil : 'https://picsum.photos/100/100'} alt="Avatar" className="w-24 h-24 md:w-32 md:h-32 rounded-lg border-4 border-rc-bg bg-rc-bg object-cover"/>
+                        <img src={shopData.foto_profil ? '/storage/' + shopData.foto_profil : '/logo_web/no-product.png'} alt="Avatar" className="w-24 h-24 md:w-32 md:h-32 rounded-lg border-4 border-rc-bg bg-rc-bg object-cover"/>
                         {shopData.shop_tier === 'raden' && (
                            <div className="absolute -top-3 -right-3 bg-rc-logo text-rc-bg p-1.5 px-3 uppercase text-[9px] font-bold rounded flex items-center gap-1">
                                <i className="fa-solid fa-crown"></i> RADEN
@@ -374,6 +374,7 @@ export default function ShopDashboard() {
             </div>
 
             <AddProductModal 
+                key={isAddModalOpen ? (editingProduct?.id || 'new') : 'closed'}
                 isOpen={isAddModalOpen} 
                 onClose={() => { setIsAddModalOpen(false); setEditingProduct(null); }} 
                 onSuccess={fetchShopData} 

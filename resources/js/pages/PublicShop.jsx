@@ -44,8 +44,8 @@ export default function PublicShop() {
 
     const shop = shopData;
     const products = shopData.products || [];
-    const defaultBanner = 'https://picsum.photos/1200/300';
-    const defaultAvatar = 'https://picsum.photos/seed/placeholder/200/200';
+    const defaultBanner = '/logo_web/no-product.png';
+    const defaultAvatar = '/logo_web/no-product.png';
 
     const categories = ['Semua', ...new Set(products.map(p => p.kategori).filter(Boolean))];
 

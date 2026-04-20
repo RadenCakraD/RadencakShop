@@ -18,8 +18,7 @@ export default function Home() {
     // Banner Carousel State
     const [currentSlide, setCurrentSlide] = useState(0);
     const [banners, setBanners] = useState([
-        { image_url: "https://picsum.photos/1200/400?random=1" },
-        { image_url: "https://picsum.photos/1200/400?random=2" }
+        { image_url: "/logo_web/no-product.png" }
     ]);
 
     // Banner Carousel Logic
