@@ -8,6 +8,8 @@ export default function Checkout() {
 
     const [user, setUser] = useState(null);
     const [checkoutItems, setCheckoutItems] = useState([]);
+    const [addresses, setAddresses] = useState([]);
+    const [selectedAddress, setSelectedAddress] = useState(null);
     const [loading, setLoading] = useState(true);
     const [processingCheckout, setProcessingCheckout] = useState(false);
 
@@ -51,13 +53,20 @@ export default function Checkout() {
         try {
             setLoading(true);
 
-            // Parallel Fetch: User Info and Cart Items
-            const [userRes, cartRes] = await Promise.all([
+            // Parallel Fetch: User Info, Cart Items, and Addresses
+            const [userRes, cartRes, addressRes] = await Promise.all([
                 axios.get('/api/user'),
-                axios.get('/api/cart')
+                axios.get('/api/cart'),
+                axios.get('/api/addresses')
             ]);
 
             setUser(userRes.data);
+            setAddresses(addressRes.data);
+            
+            if (addressRes.data.length > 0) {
+                const primary = addressRes.data.find(a => a.is_primary);
+                setSelectedAddress(primary || addressRes.data[0]);
+            }
 
             const filteredCarts = cartRes.data.filter(c => selectedIds.includes(c.id.toString()));
             if (filteredCarts.length === 0) {
@@ -105,7 +114,12 @@ export default function Checkout() {
             return;
         }
 
-        const addressStr = `${user.name || 'Tanpa Nama'} | ${user.no_hp || '-'} | ${user.alamat || '-'}`;
+        if (!selectedAddress) {
+            toast.error("Harap tambahkan Alamat Pengiriman di Pusat Pengaturan terlebih dahulu!");
+            return;
+        }
+
+        const addressStr = `[${selectedAddress.tag.toUpperCase()}] ${selectedAddress.receiver_name} | ${selectedAddress.phone_number} | ${selectedAddress.full_address} (Patokan: ${selectedAddress.note || '-'})`;
 
         const payload = {
             cart_ids: checkoutItems.map(item => item.id),

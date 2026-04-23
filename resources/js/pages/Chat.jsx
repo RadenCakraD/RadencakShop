@@ -1,20 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
+import useSWR from 'swr';
+
+const fetcher = url => axios.get(url).then(res => res.data);
 
 export default function Chat() {
     const navigate = useNavigate();
 
-    const [rooms, setRooms] = useState([]);
     const [activeRoom, setActiveRoom] = useState(null);
-    const [messages, setMessages] = useState([]);
-
-    const [loadingRooms, setLoadingRooms] = useState(true);
-    const [loadingMessages, setLoadingMessages] = useState(false);
-
     const [inputText, setInputText] = useState('');
     const [sending, setSending] = useState(false);
-
     const messagesEndRef = useRef(null);
 
     // Helper untuk menangani avatar terselubung (string "null" atau empty)
@@ -26,47 +22,45 @@ export default function Chat() {
     };
 
     const handleImageError = (e, fallbackName) => {
-        e.target.onerror = null; // Prevent infinite loop if fallback also fails
+        e.target.onerror = null;
         e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fallbackName || 'A')}&background=27272a&color=FFCC00&bold=true`;
     };
 
-    // Initial Fetch for Chat Rooms
+    // Initial check for auth
     useEffect(() => {
-        const fetchRooms = async () => {
-            if (!localStorage.getItem('auth_token')) {
-                navigate('/login');
-                return;
-            }
-            try {
-                const res = await axios.get('/api/chat');
-                setRooms(res.data.chats || []);
-                // Default Active Room to the first one if exists
-                if (res.data.chats && res.data.chats.length > 0) {
-                    handleSelectRoom(res.data.chats[0]);
-                }
-            } catch (e) {
-                console.error("Gagal memuat list chat", e);
-            } finally {
-                setLoadingRooms(false);
-            }
-        };
-        fetchRooms();
+        if (!localStorage.getItem('auth_token')) {
+            navigate('/login');
+        }
     }, [navigate]);
 
-    // Fetch Messages when a Room is selected
-    const handleSelectRoom = async (room) => {
-        setActiveRoom(room);
-        setLoadingMessages(true);
-        try {
-            const res = await axios.get(`/api/chat/${room.id}`);
-            setMessages(res.data.messages || []);
-            scrollToBottom();
-        } catch (e) {
-            console.error("Gagal memuat riwayat chat", e);
-        } finally {
-            setLoadingMessages(false);
+    // Use SWR for real-time polling (3 seconds)
+    const { data: rawRoomsData, isLoading: loadingRooms, mutate: mutateRooms } = useSWR('/api/chat', fetcher, { 
+        refreshInterval: 3000,
+        revalidateOnFocus: true
+    });
+    const rooms = rawRoomsData?.chats || [];
+
+    // Auto-select first room
+    useEffect(() => {
+        if (!activeRoom && rooms.length > 0) {
+            setActiveRoom(rooms[0]);
         }
-    };
+    }, [rooms, activeRoom]);
+
+    const { data: rawMessagesData, isLoading: loadingMessages, mutate: mutateMessages } = useSWR(activeRoom ? `/api/chat/${activeRoom.id}` : null, fetcher, { 
+        refreshInterval: 3000,
+        revalidateOnFocus: true
+    });
+    const messages = rawMessagesData?.messages || [];
+
+    // Local Scroll logic tracking
+    const prevMessagesLen = useRef(0);
+    useEffect(() => {
+        if (messages.length > prevMessagesLen.current) {
+            scrollToBottom();
+        }
+        prevMessagesLen.current = messages.length;
+    }, [messages]);
 
     const scrollToBottom = () => {
         setTimeout(() => {
@@ -85,21 +79,33 @@ export default function Chat() {
         try {
             const res = await axios.post(`/api/chat/${activeRoom.id}/message`, {
                 message: originalText,
-                as_shop: activeRoom.is_seller // tell API if we reply as the shop owner
+                as_shop: activeRoom.is_seller
             });
 
-            const newMsg = res.data.data;
-            setMessages(prev => [...prev, newMsg]);
-
-            // update room latest message locally
-            setRooms(prev => prev.map(r => r.id === activeRoom.id ? { ...r, latest_message: newMsg.message } : r));
+            // Optimistic Updates
+            mutateMessages(prev => ({
+                ...prev,
+                messages: [...(prev?.messages || []), res.data.data]
+            }), false);
+            
+            mutateRooms(prev => ({
+                ...prev,
+                chats: (prev?.chats || []).map(r => r.id === activeRoom.id ? { ...r, latest_message: originalText } : r)
+            }), false);
 
             scrollToBottom();
         } catch (e) {
             alert('Gagal mengirim pesan');
-            setInputText(originalText); // revert text if failed
+            setInputText(originalText); // revert
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleSelectRoom = (room) => {
+        if (activeRoom?.id !== room.id) {
+            setActiveRoom(null); // Force skeletal frame resetting quickly
+            setTimeout(() => setActiveRoom(room), 0);
         }
     };
 

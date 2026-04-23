@@ -230,8 +230,8 @@ export default function ProductDetail() {
                                                 if (varImgIdx !== -1) setActiveImageIndex(varImgIdx);
                                             }}
                                             className={`px-4 py-2 border-[1px] font-bold text-xs transition-colors rounded-sm uppercase ${activeVariant?.id === v.id
-                                                    ? 'border-rc-logo bg-rc-bg text-rc-logo'
-                                                    : 'border-rc-main/20 text-rc-muted hover:border-rc-main hover:text-rc-main bg-rc-bg'
+                                                ? 'border-rc-logo bg-rc-bg text-rc-logo'
+                                                : 'border-rc-main/20 text-rc-muted hover:border-rc-main hover:text-rc-main bg-rc-bg'
                                                 } ${v.stok == 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
                                             disabled={v.stok == 0}
                                         >

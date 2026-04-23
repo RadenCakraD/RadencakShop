@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Storage;
 class AdminController extends Controller
 {
     private function isAdmin($user) {
-        return $user && $user->role === 'admin';
+        return $user && in_array($user->role, ['super_admin', 'admin_staff', 'admin']); // fallback to 'admin' if old
     }
 
     public function getBanners()
@@ -37,7 +37,6 @@ class AdminController extends Controller
         ]);
 
         $path = $request->file('image')->store('banners', 'public');
-
         $maxPosition = Banner::max('position');
 
         $banner = Banner::create([
@@ -55,13 +54,6 @@ class AdminController extends Controller
     public function updateBanner(Request $request, $id)
     {
         if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
-
-        $request->validate([
-            'image' => 'nullable|image|max:5120', // 5MB
-            'title' => 'nullable|string',
-            'description' => 'nullable|string',
-            'link_url' => 'nullable|string',
-        ]);
 
         $banner = Banner::findOrFail($id);
 
@@ -84,15 +76,9 @@ class AdminController extends Controller
     {
         if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
 
-        $request->validate([
-            'ordered_ids' => 'required|array',
-            'ordered_ids.*' => 'integer|exists:banners,id',
-        ]);
-
         foreach ($request->ordered_ids as $index => $id) {
             Banner::where('id', $id)->update(['position' => $index]);
         }
-
         return response()->json(['message' => 'Urutan banner berhasil disimpan']);
     }
 
@@ -101,19 +87,22 @@ class AdminController extends Controller
         if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
 
         $banner = Banner::findOrFail($id);
-        if ($banner->image_url) {
-            Storage::disk('public')->delete($banner->image_url);
-        }
+        if ($banner->image_url) Storage::disk('public')->delete($banner->image_url);
         $banner->delete();
 
         return response()->json(['message' => 'Banner dihapus']);
     }
 
+    // Products (Flash Sale)
     public function fetchAllProducts(Request $request)
     {
         if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
 
-        $products = Product::with(['shop'])->orderBy('created_at', 'desc')->get();
+        $query = Product::with(['shop', 'images']);
+        if ($request->q) {
+            $query->where('nama_produk', 'like', '%' . $request->q . '%');
+        }
+        $products = $query->orderBy('created_at', 'desc')->get();
         return response()->json($products);
     }
 
@@ -125,24 +114,32 @@ class AdminController extends Controller
         $product->is_flash_sale = !$product->is_flash_sale;
         $product->save();
 
-        return response()->json([
-            'message' => 'Status flash sale diubah', 
-            'is_flash_sale' => $product->is_flash_sale
-        ]);
+        return response()->json(['message' => 'Status flash sale diubah']);
     }
 
+    // Users
     public function getAllUsers(Request $request)
     {
         if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
-        $users = User::orderBy('created_at', 'desc')->get(['id', 'name', 'username', 'email', 'role']);
+        
+        $query = User::query();
+        if ($request->q) {
+            $query->where('name', 'like', '%' . $request->q . '%')
+                  ->orWhere('username', 'like', '%' . $request->q . '%')
+                  ->orWhere('email', 'like', '%' . $request->q . '%');
+        }
+        
+        $users = $query->orderBy('created_at', 'desc')->get(['id', 'name', 'username', 'email', 'role']);
         return response()->json($users);
     }
 
     public function updateUserRole(Request $request, $id)
     {
-        if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
+        if (!$request->user() || $request->user()->role !== 'super_admin') {
+            return response()->json(['message' => 'Hanya Super Admin yang bisa ubah role!'], 403);
+        }
 
-        $request->validate(['role' => 'required|in:admin,toko,kurir,user']);
+        $request->validate(['role' => 'required|in:super_admin,admin_staff,admin_logistik,logistik_staff,admin_kurir,kurir_staff,user,toko,admin']);
 
         $targetUser = User::findOrFail($id);
 
@@ -153,39 +150,38 @@ class AdminController extends Controller
         $targetUser->role = $request->role;
         $targetUser->save();
 
-        return response()->json(['message' => "Role berhasil diperbarui menjadi {$request->role}", 'user' => $targetUser]);
+        return response()->json(['message' => "Role diperbarui menjadi {$request->role}"]);
     }
 
-    // Role Kurir Helpers
-    public function getShippedOrders(Request $request)
+    public function getAllWithdrawals(Request $request)
     {
-        // Akses untuk admin atau kurir
-        if ($request->user()->role !== 'admin' && $request->user()->role !== 'kurir') {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
 
-        $orders = \App\Models\Order::with(['user', 'shop'])
-            ->where('status', 'shipped')
-            ->orderBy('updated_at', 'desc')
-            ->get();
-            
-        return response()->json($orders);
+        $withdrawals = \App\Models\Withdrawal::with(['user', 'shop'])->orderBy('created_at', 'desc')->get();
+        return response()->json($withdrawals);
     }
 
-    public function markAsDelivered(Request $request, $id)
+    public function approveWithdrawal(Request $request, $id)
     {
-        if ($request->user()->role !== 'admin' && $request->user()->role !== 'kurir') {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
 
-        $order = \App\Models\Order::findOrFail($id);
-        if ($order->status !== 'shipped') {
-            return response()->json(['message' => 'Hanya pesanan sedang dikirim yang bisa diselesaikan'], 400);
-        }
+        $w = \App\Models\Withdrawal::findOrFail($id);
+        if ($w->status !== 'pending') return response()->json(['message' => 'Hanya status pending yang bisa disetujui'], 400);
 
-        $order->status = 'completed';
-        $order->save();
+        $w->status = 'completed';
+        $w->save();
+        return response()->json(['message' => 'Penarikan dana disetujui dan dilabeli Selesai.']);
+    }
 
-        return response()->json(['message' => 'Pesanan berhasil ditandai selesai/diterima!']);
+    public function rejectWithdrawal(Request $request, $id)
+    {
+        if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
+
+        $w = \App\Models\Withdrawal::findOrFail($id);
+        if ($w->status !== 'pending') return response()->json(['message' => 'Hanya status pending yang bisa ditolak'], 400);
+
+        $w->status = 'rejected';
+        $w->save();
+        return response()->json(['message' => 'Penarikan dana DITOLAK (saldo dikembalikan/gagal potong).']);
     }
 }

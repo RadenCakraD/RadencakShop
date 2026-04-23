@@ -9,7 +9,7 @@ use App\Models\Voucher;
 class VoucherController extends Controller
 {
     private function isAdmin($user) {
-        return $user && $user->role === 'admin';
+        return $user && in_array($user->role, ['super_admin', 'admin_staff', 'admin']);
     }
 
     public function index(Request $request)

@@ -24,17 +24,22 @@ class UserActivityController extends Controller
 
         $grouped = [
             'pending' => [],     // Belum Bayar
-            'processing' => [],  // Dikemas
-            'shipped' => [],     // Dikirim
+            'processing' => [],  // Dikemas & Proses Gudang
+            'shipped' => [],     // Kurir Mengantar
             'completed' => []    // Selesai / Penilaian
         ];
 
         foreach ($orders as $order) {
             $status = $order->status;
-            if (isset($grouped[$status])) {
-                $grouped[$status][] = $order;
-            } else {
-                $grouped['pending'][] = $order; // fallback
+            
+            if ($status === 'pending') {
+                $grouped['pending'][] = $order;
+            } elseif (in_array($status, ['processing', 'ready_for_pickup', 'picking_up', 'at_logistics'])) {
+                $grouped['processing'][] = $order;
+            } elseif (in_array($status, ['delivering', 'delivered'])) {
+                $grouped['shipped'][] = $order;
+            } elseif ($status === 'completed') {
+                $grouped['completed'][] = $order;
             }
         }
 

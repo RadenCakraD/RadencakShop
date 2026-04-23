@@ -20,6 +20,12 @@ export default function Information() {
     const [reviewProduct, setReviewProduct] = useState(null);
     const [submitting, setSubmitting] = useState(false);
 
+    // Tracking Modal States
+    const [isTrackingOpen, setIsTrackingOpen] = useState(false);
+    const [trackingData, setTrackingData] = useState([]);
+    const [trackingOrder, setTrackingOrder] = useState(null);
+    const [loadingTrack, setLoadingTrack] = useState(false);
+
     const fetchOrders = async () => {
         const token = localStorage.getItem('auth_token');
         if (!token) {
@@ -93,6 +99,22 @@ export default function Information() {
         }
     };
 
+    const handleTrackOrder = async (order) => {
+        setTrackingOrder(order);
+        setIsTrackingOpen(true);
+        setLoadingTrack(true);
+        try {
+            const res = await axios.get(`/api/orders/${order.id}/tracking`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
+            });
+            setTrackingData(res.data.trackings);
+        } catch (err) {
+            console.error("Gagal memuat tracking", err);
+        } finally {
+            setLoadingTrack(false);
+        }
+    };
+
     const formatRp = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
 
     const faqData = [
@@ -155,7 +177,10 @@ export default function Information() {
                                                 <i className="fa-solid fa-store text-rc-logo"></i>
                                                 <span className="font-medium text-sm tracking-wide">{order.shop?.nama_toko || 'Toko'}</span>
                                             </div>
-                                            <div className="text-[10px] text-rc-muted font-light tabular-nums bg-rc-main/5 px-2 py-1 rounded">No: RDN-{order.id.toString().padStart(6, '0')}</div>
+                                            <div className="flex flex-col items-end gap-1">
+                                                <div className="text-[10px] text-rc-muted font-light tabular-nums bg-rc-main/5 px-2 py-1 rounded">No: RDN-{order.id.toString().padStart(6, '0')}</div>
+                                                <div className="text-[10px] font-bold text-rc-logo uppercase">{order.status.replace('_', ' ')}</div>
+                                            </div>
                                         </div>
 
                                         <div className="space-y-3">
@@ -188,6 +213,15 @@ export default function Information() {
                                                 {formatRp(order.total_amount)}
                                             </div>
                                         </div>
+
+                                        {/* Tracking Action (Available on processing and shipped) */}
+                                        {(activeTab === 'processing' || activeTab === 'shipped') && (
+                                            <div className="mt-4 flex justify-start">
+                                                <button onClick={() => handleTrackOrder(order)} className="text-[10px] uppercase font-bold tracking-widest bg-rc-card border-[0.5px] border-rc-main/20 text-rc-main px-4 py-2 rounded hover:text-rc-logo hover:border-rc-logo/50 transition flex items-center gap-2 shadow-sm">
+                                                    <i className="fa-solid fa-satellite-dish"></i> Lacak Pengiriman
+                                                </button>
+                                            </div>
+                                        )}
 
                                         {/* Aksi berdasarkan status */}
                                         {activeTab === 'pending' && (
@@ -249,6 +283,50 @@ export default function Information() {
                     </div>
                 </div>
             </div>
+
+            {/* Tracking Modal */}
+            {isTrackingOpen && trackingOrder && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsTrackingOpen(false)}></div>
+                    <div className="bg-rc-bg p-6 rounded-2xl border-[0.5px] border-rc-main/30 shadow-[0_0_40px_rgba(0,0,0,0.5)] relative w-full max-w-lg animate-fade-in z-10 max-h-[80vh] flex flex-col">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-lg font-black tracking-widest text-rc-main uppercase flex items-center gap-2">
+                                <i className="fa-solid fa-satellite-dish text-rc-logo animate-pulse"></i> RESI PELACAKAN RDN-{trackingOrder.id.toString().padStart(6, '0')}
+                            </h2>
+                            <button type="button" onClick={() => setIsTrackingOpen(false)} className="text-rc-muted hover:text-red-500 text-xl font-bold transition">&times;</button>
+                        </div>
+                        
+                        <div className="overflow-y-auto no-scrollbar flex-1 relative pl-4 pr-2">
+                            {loadingTrack ? (
+                                <div className="py-10 text-center"><i className="fa-solid fa-spinner fa-spin text-rc-logo text-2xl"></i></div>
+                            ) : trackingData.length > 0 ? (
+                                <div className="space-y-6 before:absolute before:inset-y-0 before:left-[21px] before:w-[0.5px] before:bg-rc-main/10">
+                                    {trackingData.map((t, idx) => (
+                                        <div key={idx} className="relative flex items-start gap-6 group">
+                                            <div className={`w-3 h-3 mt-1 rounded-full border-[2px] border-rc-bg z-10 shadow-[0_0_5px_rgba(255,255,255,0.2)] ${idx === 0 ? 'bg-rc-logo shadow-[0_0_8px_rgba(255,215,0,0.5)]' : 'bg-rc-muted/50'}`}></div>
+                                            <div className="flex-1 -mt-1.5 pb-2">
+                                                <div className="flex justify-between items-center mb-1 drop-shadow">
+                                                    <span className={`text-xs font-bold tracking-widest uppercase ${idx === 0 ? 'text-rc-logo' : 'text-rc-main'}`}>{t.status}</span>
+                                                </div>
+                                                <div className="text-[10px] text-rc-muted/60 mb-2 font-bold uppercase">{new Date(t.created_at).toLocaleString('id-ID')}</div>
+                                                <p className="text-[11px] text-rc-main font-medium leading-relaxed mb-1 italic">"{t.note}"</p>
+                                                <p className="text-[10px] text-rc-muted uppercase"><i className="fa-solid fa-location-arrow text-rc-logo/50 mr-1"></i> {t.location}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="py-10 text-center text-xs text-rc-muted font-bold tracking-widest uppercase">
+                                    <i className="fa-solid fa-truck-ramp-box text-3xl mb-3 opacity-50 block"></i>
+                                    Pesanan Anda sedang dipersiapkan. Belum ada log pelacakan.
+                                </div>
+                            )}
+                        </div>
+                        
+                        {trackingData.length > 0 && <div className="text-[9px] text-rc-muted text-center mt-4 border-t-[0.5px] border-rc-main/10 pt-4 uppercase tracking-widest">Waktu ditunjukkan dari zona WIB (Server Time).</div>}
+                    </div>
+                </div>
+            )}
 
             {/* Review Modal */}
             {isReviewOpen && reviewProduct && (

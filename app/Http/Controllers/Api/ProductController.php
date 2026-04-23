@@ -20,6 +20,16 @@ class ProductController extends Controller
             $query->where('kategori', $request->category);
         }
 
+        if ($request->has('q') && !empty($request->q)) {
+            $q = $request->q;
+            $query->where(function($qq) use ($q) {
+                $qq->where('nama_produk', 'like', "%{$q}%")
+                   ->orWhereHas('shop', function($sq) use ($q) {
+                       $sq->where('nama_toko', 'like', "%{$q}%");
+                   });
+            });
+        }
+
         $products = $query->paginate(12);
         return response()->json($products);
     }

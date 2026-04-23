@@ -115,12 +115,24 @@ class ShopController extends Controller
         $shop = $request->user()->shop;
         if (!$shop) return response()->json(['message' => 'Toko tidak ditemukan'], 404);
 
-        $request->validate(['status' => 'required|in:processing,shipped']);
+        $request->validate(['status' => 'required|in:processing,ready_for_pickup']);
 
         $order = \App\Models\Order::where('id', $orderId)->where('shop_id', $shop->id)->firstOrFail();
         
-        $order->status = $request->status;
-        $order->save();
+        \Illuminate\Support\Facades\DB::transaction(function() use ($order, $request, $shop) {
+            $order->status = $request->status;
+            $order->save();
+
+            if ($request->status === 'ready_for_pickup') {
+                \App\Models\OrderTracking::create([
+                    'order_id' => $order->id,
+                    'status' => 'Siap Dijemput Kurir',
+                    'location' => $shop->nama_toko,
+                    'note' => 'Penjual telah mengemas pesanan dan menunggu kurir penjemput.',
+                    'user_id' => $request->user()->id
+                ]);
+            }
+        });
 
         return response()->json(['message' => 'Status pesanan diperbarui menjadi ' . $order->status, 'order' => $order]);
     }
@@ -131,11 +143,14 @@ class ShopController extends Controller
         if (!$shop) return response()->json(['message' => 'Toko tidak ditemukan'], 404);
 
         $completedOrders = clone \App\Models\Order::where('shop_id', $shop->id)->where('status', 'completed');
-        $totalProfit = $completedOrders->sum('total_amount');
+        $completedOrdersCount = (clone $completedOrders)->count();
+        $totalProfit = $completedOrders->sum('total_amount') - ($completedOrdersCount * 10500);
+        $totalWithdrawn = \App\Models\Withdrawal::where('user_id', $request->user()->id)->where('type', 'shop')->where('status', '!=', 'rejected')->sum('amount');
         
         return response()->json([
             'total_profit' => $totalProfit,
-            'completed_orders_count' => $completedOrders->count()
+            'completed_orders_count' => $completedOrdersCount,
+            'withdrawn' => $totalWithdrawn
         ]);
     }
 }

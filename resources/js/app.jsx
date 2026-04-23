@@ -16,9 +16,11 @@ import AdminDashboard from './pages/AdminDashboard';
 import PublicShop from './pages/PublicShop';
 import Chat from './pages/Chat'; // Komponen Chat Realtime
 import Profile from './pages/Profile';
+import Settings from './pages/Settings';
 import Information from './pages/Information';
 import RegisterShop from './pages/RegisterShop';
 import CourierDashboard from './pages/CourierDashboard';
+import LogisticsPortal from './pages/LogisticsPortal';
 
 // Set up Axios default interceptors for auth
 axios.interceptors.request.use(config => {
@@ -37,35 +39,37 @@ export default function App() {
                 {/* Rute Auth */}
                 <Route path="/login" element={<Login />} />
                 <Route path="/daftar" element={<Register />} />
-                
+
                 {/* Profil Toko Publik */}
                 <Route path="/toko/:id" element={<PublicShop />} />
-                
+
                 {/* Chat Hub */}
                 <Route path="/chat" element={<Chat />} />
-                
+
                 {/* Transaksi Pembeli */}
                 <Route path="/keranjang" element={<Cart />} />
                 <Route path="/pembayaran" element={<Checkout />} />
 
                 {/* Profil dan Informasi */}
                 <Route path="/profile" element={<Profile />} />
+                <Route path="/pengaturan" element={<Settings />} />
                 <Route path="/informasi" element={<Information />} />
 
                 {/* Beranda Global */}
                 <Route path="/" element={<Home />} />
                 <Route path="/dashboard" element={<Home />} />
-                
+
                 {/* Toko Saya Dashboard */}
                 <Route path="/toko" element={<ShopDashboard />} />
                 <Route path="/daftar-toko" element={<RegisterShop />} />
-                
+
                 {/* Produk Detail */}
                 <Route path="/product/:slug" element={<ProductDetail />} />
-                
-                {/* Admin & Kurir Dashboard */}
+
+                {/* Admin, Kurir, Logistik Dashboard */}
                 <Route path="/admin" element={<AdminDashboard />} />
                 <Route path="/kurir" element={<CourierDashboard />} />
+                <Route path="/logistik" element={<LogisticsPortal />} />
 
                 {/* Fallback */}
                 <Route path="*" element={<Home />} />

@@ -22,6 +22,11 @@ export default function ShopDashboard() {
     const [activeTab, setActiveTab] = useState('produk');
     const [activeCategory, setActiveCategory] = useState('Semua');
 
+    // Withdrawal
+    const [withdrawAmount, setWithdrawAmount] = useState('');
+    const [withdrawBank, setWithdrawBank] = useState('');
+    const [isWithdrawing, setIsWithdrawing] = useState(false);
+
     const fetchShopData = async () => {
         try {
             const response = await axios.get('/api/shop/my');
@@ -39,6 +44,27 @@ export default function ShopDashboard() {
             }
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleWithdraw = async (e) => {
+        e.preventDefault();
+        setIsWithdrawing(true);
+        try {
+            await axios.post('/api/withdrawals', {
+                amount: withdrawAmount,
+                type: 'shop',
+                bank_info: withdrawBank
+            });
+            alert("Penarikan dana berhasil diajukan!");
+            setWithdrawAmount('');
+            setWithdrawBank('');
+            // refresh profit
+            axios.get('/api/shop/profit').then(res => setProfitData(res.data)).catch(e => console.log(e));
+        } catch (e) {
+            alert(e.response?.data?.message || "Gagal menarik dana");
+        } finally {
+            setIsWithdrawing(false);
         }
     };
 
@@ -263,8 +289,8 @@ export default function ShopDashboard() {
                                             </button>
                                         )}
                                         {order.status === 'processing' && (
-                                            <button onClick={() => handleUpdateStatus(order.id, 'shipped')} className="flex-1 md:flex-none bg-rc-logo hover:opacity-80 text-rc-bg font-bold tracking-widest uppercase text-xs px-5 py-2.5 rounded-md transition-colors">
-                                                Kirim Kurir
+                                            <button onClick={() => handleUpdateStatus(order.id, 'ready_for_pickup')} className="flex-1 md:flex-none bg-rc-logo hover:opacity-80 text-rc-bg font-bold tracking-widest uppercase text-xs px-5 py-2.5 rounded-md transition-colors">
+                                                Ajukan Jemput Paket
                                             </button>
                                         )}
                                     </div>
@@ -356,18 +382,40 @@ export default function ShopDashboard() {
 
                 {/* Tab: Laporan */}
                 {activeTab === 'laporan' && (
-                    <div className="animate-fade-in grid gap-6 grid-cols-1 sm:grid-cols-2">
-                        <div className="bg-rc-card p-8 rounded-xl border-[0.5px] border-rc-main/10 flex flex-col justify-center">
-                            <div className="text-rc-muted text-xs uppercase tracking-widest font-bold mb-2 flex items-center gap-2">
-                                <i className="fa-solid fa-credit-card"></i> TOTAL PENDAPATAN BERSIH
+                    <div className="space-y-6">
+                        <div className="animate-fade-in grid gap-6 grid-cols-1 sm:grid-cols-2">
+                            <div className="bg-rc-card p-8 rounded-xl border-[0.5px] border-rc-main/10 flex flex-col justify-center">
+                                <div className="text-rc-muted text-xs uppercase tracking-widest font-bold mb-2 flex items-center gap-2">
+                                    <i className="fa-solid fa-credit-card"></i> SALDO TOKO TERSEDIA
+                                </div>
+                                <div className="text-3xl md:text-5xl font-bold tracking-tight text-rc-logo">{profitData ? formatRp(profitData.total_profit - (profitData.withdrawn || 0)) : 'Rp 0'}</div>
+                                <p className="text-[10px] text-rc-muted mt-2 font-bold uppercase">Total Penghasilan: {profitData ? formatRp(profitData.total_profit) : '0'} | Ditarik: {profitData ? formatRp(profitData.withdrawn || 0) : '0'}</p>
                             </div>
-                            <div className="text-3xl md:text-5xl font-bold tracking-tight text-rc-logo">{profitData ? formatRp(profitData.total_profit) : 'Rp 0'}</div>
+                            <div className="bg-rc-card p-8 rounded-xl border-[0.5px] border-rc-main/10 flex flex-col justify-center">
+                                <div className="text-rc-muted text-xs uppercase tracking-widest font-bold mb-2 flex items-center gap-2">
+                                    <i className="fa-solid fa-truck-fast"></i> TRANSAKSI BERHASIL 
+                                </div>
+                                <div className="text-3xl md:text-5xl font-bold tracking-tight text-rc-main">{profitData ? profitData.completed_orders_count : '0'} <span className="text-lg text-rc-muted font-medium">Pesanan</span></div>
+                            </div>
                         </div>
-                        <div className="bg-rc-card p-8 rounded-xl border-[0.5px] border-rc-main/10 flex flex-col justify-center">
-                            <div className="text-rc-muted text-xs uppercase tracking-widest font-bold mb-2 flex items-center gap-2">
-                                <i className="fa-solid fa-truck-fast"></i> TRANSAKSI BERHASIL 
-                            </div>
-                            <div className="text-3xl md:text-5xl font-bold tracking-tight text-rc-main">{profitData ? profitData.completed_orders_count : '0'} <span className="text-lg text-rc-muted font-medium">Pesanan</span></div>
+
+                        <div className="bg-rc-card p-6 rounded-xl border-[0.5px] border-rc-main/10 shadow-lg">
+                            <h4 className="text-xs font-bold uppercase tracking-widest text-rc-logo mb-6 flex items-center gap-2"><i className="fa-solid fa-money-bill-transfer"></i> Tarik Saldo Menuju Rekening</h4>
+                            <form onSubmit={handleWithdraw}>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-bold text-rc-muted mb-1">Nominal Tarik (Rp)</label>
+                                        <input required type="number" min="10000" max={profitData ? profitData.total_profit - (profitData.withdrawn || 0) : 0} value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} className="w-full bg-rc-bg p-3 border-[0.5px] border-rc-main/10 rounded-lg outline-none focus:border-rc-logo text-xs text-rc-main" placeholder="Min. 10000" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-bold text-rc-muted mb-1">Informasi Bank / E-Wallet</label>
+                                        <input required type="text" value={withdrawBank} onChange={e => setWithdrawBank(e.target.value)} className="w-full bg-rc-bg p-3 border-[0.5px] border-rc-main/10 rounded-lg outline-none focus:border-rc-logo text-xs text-rc-main" placeholder="Contoh: BCA 1234567890 a.n Sutejo" />
+                                    </div>
+                                </div>
+                                <button type="submit" disabled={isWithdrawing || !profitData || (profitData.total_profit - (profitData.withdrawn||0)) < 10000} className="mt-4 bg-rc-logo text-rc-bg font-bold text-xs px-6 py-3 rounded-lg shadow-lg uppercase hover:bg-yellow-400 transition w-full sm:w-auto disabled:opacity-50">
+                                    {isWithdrawing ? 'Memproses...' : 'Ajukan Penarikan'}
+                                </button>
+                            </form>
                         </div>
                     </div>
                 )}

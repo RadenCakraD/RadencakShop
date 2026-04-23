@@ -61,6 +61,7 @@ class CheckoutController extends Controller
                 }
 
                 $totalAmount += 500; // Biaya layanan
+                $totalAmount += 10000; // Biaya logistik/ongkir flat rate
 
                 $appliedDiscount = 0;
                 $appliedVoucherCode = null;
