@@ -20,7 +20,7 @@ class AuthController extends Controller
             'country_code' => 'nullable|string',
             'alamat' => 'nullable|string',
             'password' => 'required|min:8|confirmed',
-            'avatar' => 'nullable|image|max:2048'
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
         ]);
 
         $user = User::create([
@@ -38,6 +38,31 @@ class AuthController extends Controller
         return response()->json([
             'message' => 'Akun berhasil dibuat!',
             'token' => $token,
+            'user' => $user
+        ], 201);
+    }
+
+    public function registerStaff(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string',
+            'email' => 'required|email|unique:users',
+            'password' => 'required|min:8|confirmed',
+            'role' => 'required|in:kurir_staff,admin_kurir,logistik_staff,admin_logistik,shop_staff'
+        ]);
+
+        $user = User::create([
+            'name' => $request->name,
+            'username' => explode('@', $request->email)[0] . rand(100,999),
+            'email' => $request->email,
+            'password' => Hash::make($request->password),
+            'role' => $request->role,
+            'no_hp' => '',
+            'alamat' => ''
+        ]);
+
+        return response()->json([
+            'message' => 'Pendaftaran staf berhasil. Silakan tunggu verifikasi admin.',
             'user' => $user
         ], 201);
     }
@@ -111,5 +136,38 @@ class AuthController extends Controller
     public function destroy(string $id)
     {
         //
+    }
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+        
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email,' . $user->id,
+            'no_hp' => 'nullable|string|max:20',
+            'alamat' => 'nullable|string',
+            'avatar' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'password' => 'nullable|min:8|confirmed'
+        ]);
+
+        $user->name = $request->name;
+        $user->email = $request->email;
+        $user->no_hp = $request->no_hp;
+        $user->alamat = $request->alamat;
+
+        if ($request->hasFile('avatar')) {
+            $user->avatar = $request->file('avatar')->store('users/avatars', 'public');
+        }
+
+        if ($request->filled('password')) {
+            $user->password = Hash::make($request->password);
+        }
+
+        $user->save();
+
+        return response()->json([
+            'message' => 'Profil berhasil diperbarui',
+            'user' => $user
+        ]);
     }
 }

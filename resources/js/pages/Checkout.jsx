@@ -10,6 +10,7 @@ export default function Checkout() {
     const [checkoutItems, setCheckoutItems] = useState([]);
     const [addresses, setAddresses] = useState([]);
     const [selectedAddress, setSelectedAddress] = useState(null);
+    const [showAddressModal, setShowAddressModal] = useState(false);
     const [loading, setLoading] = useState(true);
     const [processingCheckout, setProcessingCheckout] = useState(false);
 
@@ -34,29 +35,20 @@ export default function Checkout() {
         }
 
         const selectedIdsStr = localStorage.getItem('checkout_items');
-        if (!selectedIdsStr) {
-            toast.error('Tidak ada barang yang dipilih untuk dicheckout.');
-            navigate('/keranjang');
-            return;
-        }
-
-        let selectedIds = [];
-        try {
-            selectedIds = JSON.parse(selectedIdsStr);
-        } catch (e) { }
-
-        if (selectedIds.length === 0) {
-            navigate('/keranjang');
+        const buyNowItemStr = localStorage.getItem('buy_now_item');
+        
+        if (!selectedIdsStr && !buyNowItemStr) {
+            // Jika tidak ada barang, arahkan ke Home saja, jangan paksa ke keranjang agar tidak terjebak
+            navigate('/');
             return;
         }
 
         try {
             setLoading(true);
 
-            // Parallel Fetch: User Info, Cart Items, and Addresses
-            const [userRes, cartRes, addressRes] = await Promise.all([
+            // Parallel Fetch: User Info and Addresses
+            const [userRes, addressRes] = await Promise.all([
                 axios.get('/api/user'),
-                axios.get('/api/cart'),
                 axios.get('/api/addresses')
             ]);
 
@@ -68,13 +60,29 @@ export default function Checkout() {
                 setSelectedAddress(primary || addressRes.data[0]);
             }
 
-            const filteredCarts = cartRes.data.filter(c => selectedIds.includes(c.id.toString()));
-            if (filteredCarts.length === 0) {
-                toast.error('Barang di keranjang tidak valid atau sudah dibayar.');
-                navigate('/keranjang');
-                return;
+            if (buyNowItemStr) {
+                // Handle Buy Now (Direct)
+                const buyNowData = JSON.parse(buyNowItemStr);
+                setCheckoutItems([{
+                    id: 'direct', // special id for direct buy
+                    product_id: buyNowData.product_id,
+                    variant_id: buyNowData.variant_id,
+                    qty: buyNowData.qty,
+                    product: buyNowData.product,
+                    variant: buyNowData.variant
+                }]);
+            } else {
+                // Handle Cart Checkout
+                const selectedIds = JSON.parse(selectedIdsStr);
+                const cartRes = await axios.get('/api/cart');
+                const filteredCarts = cartRes.data.filter(c => selectedIds.includes(c.id.toString()));
+                if (filteredCarts.length === 0) {
+                    toast.error('Barang di keranjang tidak valid atau sudah dibayar.');
+                    navigate('/keranjang');
+                    return;
+                }
+                setCheckoutItems(filteredCarts);
             }
-            setCheckoutItems(filteredCarts);
 
         } catch (err) {
             console.error(err);
@@ -121,13 +129,25 @@ export default function Checkout() {
 
         const addressStr = `[${selectedAddress.tag.toUpperCase()}] ${selectedAddress.receiver_name} | ${selectedAddress.phone_number} | ${selectedAddress.full_address} (Patokan: ${selectedAddress.note || '-'})`;
 
+        const isDirectBuy = checkoutItems.length === 1 && checkoutItems[0].id === 'direct';
+
         const payload = {
-            cart_ids: checkoutItems.map(item => item.id),
+            address_id: selectedAddress.id,
             address_info: addressStr,
             payment_method: paymentMethod === 'Cash / COD' ? 'Cash / COD' : `${paymentMethod} - ${paymentSubMethod} (${accountNumber})`,
             shipping_method: shippingMethod,
-            voucher_code: appliedVoucher ? appliedVoucher.code : null
+            voucher_code: appliedVoucher ? appliedVoucher.code : null,
+            shipping_latitude: selectedAddress.latitude,
+            shipping_longitude: selectedAddress.longitude
         };
+
+        if (isDirectBuy) {
+            payload.product_id = checkoutItems[0].product_id;
+            payload.variant_id = checkoutItems[0].variant_id;
+            payload.qty = checkoutItems[0].qty;
+        } else {
+            payload.cart_ids = checkoutItems.map(item => item.id);
+        }
 
         setProcessingCheckout(true);
         try {
@@ -137,18 +157,15 @@ export default function Checkout() {
                 // Trigger Midtrans Snap Popup
                 window.snap.pay(res.data.snap_token, {
                     onSuccess: async function (result) {
-                        try {
-                            await axios.post('/api/checkout/success-prototype', { snap_token: res.data.snap_token }, {
-                                headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
-                            });
-                        } catch(e) {}
-                        toast.success("Pembayaran berhasil!");
+                        toast.success("Pembayaran berhasil! Silahkan tunggu validasi sistem.");
                         localStorage.removeItem('checkout_items');
-                        navigate('/informasi?tab=processing');
+                        localStorage.removeItem('buy_now_item');
+                        navigate('/informasi?tab=pending');
                     },
                     onPending: function (result) {
                         toast.loading("Menunggu pembayaran Anda!");
                         localStorage.removeItem('checkout_items');
+                        localStorage.removeItem('buy_now_item');
                         navigate('/informasi?tab=pending');
                     },
                     onError: function (result) {
@@ -157,12 +174,14 @@ export default function Checkout() {
                     onClose: function () {
                         toast.error('Gagal: Anda menutup popup tanpa menyelesaikan pembayaran');
                         localStorage.removeItem('checkout_items');
+                        localStorage.removeItem('buy_now_item');
                         navigate('/informasi?tab=pending');
                     }
                 });
             } else {
                 toast.success('Pesanan Berhasil Dibuat Secara COD.');
                 localStorage.removeItem('checkout_items');
+                localStorage.removeItem('buy_now_item');
                 navigate('/informasi?tab=processing'); // COD usually goes to processing immediately
             }
         } catch (err) {
@@ -227,9 +246,13 @@ export default function Checkout() {
         }
     };
 
-    const shippingFee = shippingMethod === 'Santai' ? 5000 : 15000;
-    const serviceFee = 500;
-    const finalTotal = Math.max(0, productTotal + shippingFee + serviceFee - discountAmount);
+    const shippingFee = selectedAddress?.region 
+        ? (shippingMethod === 'Santai' ? parseFloat(selectedAddress.region.shipping_fee_santai) : parseFloat(selectedAddress.region.shipping_fee_cepat))
+        : (shippingMethod === 'Santai' ? 10000 : 15000);
+    const serviceFee = selectedAddress?.region ? parseFloat(selectedAddress.region.service_fee) : 500;
+    const taxRate = selectedAddress?.region ? parseFloat(selectedAddress.region.tax_rate) : 0;
+    const taxAmount = (productTotal * taxRate) / 100;
+    const finalTotal = Math.max(0, productTotal + shippingFee + serviceFee + taxAmount - discountAmount);
 
     return (
         <div className="bg-rc-bg min-h-screen pb-32 text-rc-main font-sans">
@@ -253,14 +276,31 @@ export default function Checkout() {
 
                     {/* Kotak Alamat Pengiriman */}
                     <div className="bg-rc-card rounded-xl border-[0.5px] border-rc-main/20 p-6 relative overflow-hidden">
-                        <h2 className="text-sm font-bold text-rc-main uppercase mb-4 flex items-center gap-2 mt-2 border-b-[0.5px] border-rc-main/20 pb-3">
-                            <i className="fa-solid fa-location-dot text-rc-logo"></i> ALAMAT PENGIRIMAN
-                        </h2>
-                        {user && (
+                        <div className="flex justify-between items-center mb-4 mt-2 border-b-[0.5px] border-rc-main/20 pb-3">
+                            <h2 className="text-sm font-bold text-rc-main uppercase flex items-center gap-2">
+                                <i className="fa-solid fa-location-dot text-rc-logo"></i> ALAMAT PENGIRIMAN
+                            </h2>
+                            <button onClick={() => setShowAddressModal(true)} className="text-xs font-bold text-rc-logo hover:text-white uppercase px-3 py-1 border-[0.5px] border-rc-logo/30 hover:bg-rc-logo rounded transition">
+                                Ubah
+                            </button>
+                        </div>
+                        {selectedAddress ? (
                             <div className="text-sm text-rc-muted bg-rc-bg p-4 rounded-lg border-[0.5px] border-rc-main/20">
-                                <div className="font-bold text-base text-rc-main mb-1">{user.username || user.name || 'Nama Belum Diatur'}</div>
-                                <div className="mb-1">{user.no_hp || 'No HP Belum Diatur'}</div>
-                                <div><span className="bg-rc-logo text-rc-bg text-[10px] px-2 py-0.5 rounded-sm font-bold mr-2 uppercase">Utama</span>{user.alamat || 'Alamat Belum Diatur. Harap konfigurasi di setelan akun.'}</div>
+                                <div className="font-bold text-base text-rc-main mb-1 flex items-center gap-2">
+                                    {selectedAddress.receiver_name}
+                                    <span className="bg-rc-logo text-rc-bg text-[9px] px-2 py-0.5 rounded shadow-sm uppercase font-black">{selectedAddress.tag}</span>
+                                </div>
+                                <div className="mb-1 font-bold tracking-wider">{selectedAddress.phone_number}</div>
+                                <div className="text-xs mb-1 line-clamp-2">{selectedAddress.full_address}</div>
+                                {selectedAddress.note && <div className="text-[10px] text-teal-400 font-bold bg-teal-400/10 px-2 py-1 rounded w-fit italic mt-1">"{selectedAddress.note}"</div>}
+                            </div>
+                        ) : (
+                            <div className="text-sm text-rc-muted bg-red-500/10 p-4 rounded-lg border-[0.5px] border-red-500/30 flex items-center gap-3">
+                                <i className="fa-solid fa-triangle-exclamation text-red-500 text-xl"></i>
+                                <div>
+                                    <div className="font-bold text-red-500 uppercase text-xs mb-0.5">Alamat Belum Diatur</div>
+                                    <div className="text-[10px] text-rc-main/70">Harap tambahkan alamat di Pusat Pengaturan untuk melanjutkan pesanan.</div>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -305,7 +345,7 @@ export default function Checkout() {
                                     <div className="font-bold text-rc-main text-sm">Santai</div>
                                     <div className="text-xs text-rc-muted mt-1">Estimasi 5 Hari</div>
                                 </div>
-                                <div className="font-bold text-rc-main">{formatRp(5000)}</div>
+                                <div className="font-bold text-rc-main">{formatRp(selectedAddress?.region ? selectedAddress.region.shipping_fee_santai : 10000)}</div>
                             </label>
                             <label className={`flex-1 flex justify-between items-center border-[0.5px] rounded-lg p-4 cursor-pointer transition ${shippingMethod === 'Cepat' ? 'border-rc-logo bg-rc-bg border' : 'border-rc-main/30 hover:border-rc-logo'}`}>
                                 <div>
@@ -313,7 +353,7 @@ export default function Checkout() {
                                     <div className="font-bold text-rc-main text-sm">Cepat</div>
                                     <div className="text-xs text-rc-muted mt-1">Estimasi 3 Hari</div>
                                 </div>
-                                <div className="font-bold text-rc-main">{formatRp(15000)}</div>
+                                <div className="font-bold text-rc-main">{formatRp(selectedAddress?.region ? selectedAddress.region.shipping_fee_cepat : 15000)}</div>
                             </label>
                         </div>
                     </div>
@@ -391,9 +431,18 @@ export default function Checkout() {
                 {/* Kolom Kanan: Rincian Biaya Sticky */}
                 <div className="w-full lg:w-1/3">
                     <div className="bg-rc-card rounded-xl border-[0.5px] border-rc-main/20 p-6 sticky top-24">
-                        <h2 className="text-sm font-bold text-rc-main uppercase mb-6 border-b-[0.5px] border-rc-main/20 pb-4 flex items-center gap-2">
+                        <h2 className="text-sm font-bold text-rc-main uppercase mb-2 flex items-center gap-2">
                             <i className="fa-solid fa-receipt text-rc-logo"></i> RINGKASAN BELANJA
                         </h2>
+                        {selectedAddress?.region ? (
+                            <div className="mb-6 flex items-center gap-1.5 opacity-60">
+                                <i className="fa-solid fa-earth-asia text-[10px] text-blue-500"></i>
+                                <span className="text-[10px] font-black uppercase tracking-widest text-rc-main">Wilayah: {selectedAddress.region.name}</span>
+                            </div>
+                        ) : (
+                            <div className="mb-6 h-4"></div>
+                        )}
+                        <div className="h-[0.5px] w-full bg-rc-main/10 mb-6"></div>
 
                         <div className="flex justify-between items-center mb-3">
                             <span className="text-rc-muted text-xs font-bold">Total Harga ({totalQty} Brg)</span>
@@ -406,6 +455,10 @@ export default function Checkout() {
                         <div className="flex justify-between items-center mb-3">
                             <span className="text-rc-muted text-xs font-bold">Biaya Layanan</span>
                             <span className="text-rc-main font-bold">{formatRp(serviceFee)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mb-3">
+                            <span className="text-rc-muted text-xs font-bold">Pajak ({taxRate}%)</span>
+                            <span className="text-rc-main font-bold">{formatRp(taxAmount)}</span>
                         </div>
 
                         {appliedVoucher && (
@@ -454,6 +507,50 @@ export default function Checkout() {
                 </div>
 
             </div>
+
+            {/* Modal Pilih Alamat */}
+            {showAddressModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+                    <div className="bg-rc-bg border-[0.5px] border-rc-main/20 rounded-xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
+                        <div className="p-5 border-b-[0.5px] border-rc-main/20 flex justify-between items-center bg-rc-card">
+                            <h2 className="font-bold uppercase text-rc-main text-sm flex items-center gap-2">
+                                <i className="fa-solid fa-map-location-dot text-rc-logo"></i> Pilih Alamat
+                            </h2>
+                            <button onClick={() => setShowAddressModal(false)} className="text-rc-muted hover:text-red-500 transition w-8 h-8 flex items-center justify-center rounded-full hover:bg-red-500/10">
+                                <i className="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto space-y-3">
+                            {addresses.length === 0 ? (
+                                <div className="text-center py-10 text-rc-muted text-xs">
+                                    <i className="fa-solid fa-box-open text-3xl mb-3 opacity-50 block"></i>
+                                    Belum ada alamat tersimpan.
+                                </div>
+                            ) : (
+                                addresses.map(addr => (
+                                    <div 
+                                        key={addr.id} 
+                                        onClick={() => { setSelectedAddress(addr); setShowAddressModal(false); }}
+                                        className={`p-4 rounded-lg border-[0.5px] cursor-pointer transition ${selectedAddress?.id === addr.id ? 'border-rc-logo bg-rc-logo/5' : 'border-rc-main/20 hover:border-rc-logo/50'}`}
+                                    >
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex items-center gap-2">
+                                                <i className={`fa-solid ${addr.tag.toLowerCase() === 'rumah' ? 'fa-house' : addr.tag.toLowerCase() === 'kantor' ? 'fa-building' : 'fa-thumbtack'} text-rc-logo`}></i>
+                                                <span className="text-xs font-bold uppercase text-rc-main">{addr.tag}</span>
+                                                {addr.is_primary && <span className="text-[8px] bg-rc-logo text-rc-bg px-1.5 py-0.5 rounded uppercase font-black">Utama</span>}
+                                            </div>
+                                            {selectedAddress?.id === addr.id && <i className="fa-solid fa-circle-check text-rc-logo"></i>}
+                                        </div>
+                                        <div className="font-bold text-rc-main text-sm">{addr.receiver_name}</div>
+                                        <div className="text-xs text-rc-muted mb-1">{addr.phone_number}</div>
+                                        <div className="text-xs text-rc-muted line-clamp-2">{addr.full_address}</div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

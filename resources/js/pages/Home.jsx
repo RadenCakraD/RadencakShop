@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import useSWR from 'swr';
 import ProductCard from '../components/ProductCard';
 
 const fetcher = url => axios.get(url).then(res => res.data);
 
 export default function Home() {
+    const navigate = useNavigate();
     const [products, setProducts] = useState([]);
+    const [flashSaleProducts, setFlashSaleProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
     const [page, setPage] = useState(1);
     const [hasMorePages, setHasMorePages] = useState(true);
     const [activeCategory, setActiveCategory] = useState('Semua');
+    const [timeLeft, setTimeLeft] = useState('');
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [isNotifOpen, setIsNotifOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -25,6 +28,10 @@ export default function Home() {
         }, 500);
         return () => clearTimeout(timer);
     }, [searchQuery]);
+
+    useEffect(() => {
+        axios.get('/api/flash-sales').then(res => setFlashSaleProducts(res.data)).catch(console.error);
+    }, []);
 
     // Banner Carousel State
     const [currentSlide, setCurrentSlide] = useState(0);
@@ -53,6 +60,11 @@ export default function Home() {
     const { data: bannersData } = useSWR('/api/banners/active', fetcher);
     const { data: notifCount, mutate: mutateNotifCount } = useSWR(localStorage.getItem('auth_token') ? '/api/notifications/unread-count' : null, fetcher);
     const { data: notifications, mutate: mutateNotifications } = useSWR(isNotifOpen ? '/api/notifications' : null, fetcher);
+    const { data: cartData } = useSWR(localStorage.getItem('auth_token') ? '/api/cart' : null, fetcher);
+    const { data: chatData } = useSWR(localStorage.getItem('auth_token') ? '/api/chat/unread-count' : null, fetcher);
+
+    const cartCount = cartData?.data?.length || 0;
+    const chatUnreadCount = chatData?.unread_count || 0;
 
     useEffect(() => {
         if (userData) setUser(userData);
@@ -120,10 +132,37 @@ export default function Home() {
         }
     };
 
-    // Dummy filter fallback removed because we do server-side filtering
     const filteredProducts = products;
 
-    const flashSaleProducts = products.filter(p => p.is_flash_sale);
+    useEffect(() => {
+        if (flashSaleProducts.length === 0) return;
+        
+        const endTimes = flashSaleProducts
+            .filter(p => p.flash_sale_end)
+            .map(p => new Date(p.flash_sale_end).getTime());
+            
+        if (endTimes.length === 0) return;
+        
+        const nearestEnd = Math.min(...endTimes);
+
+        const interval = setInterval(() => {
+            const now = new Date().getTime();
+            const distance = nearestEnd - now;
+
+            if (distance < 0) {
+                setTimeLeft('BERAKHIR');
+                clearInterval(interval);
+            } else {
+                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                
+                setTimeLeft(`${hours.toString().padStart(2, '0')} : ${minutes.toString().padStart(2, '0')} : ${seconds.toString().padStart(2, '0')}`);
+            }
+        }, 1000);
+
+        return () => clearInterval(interval);
+    }, [flashSaleProducts]);
 
     const loadMore = () => {
         if (!loading && hasMorePages) {
@@ -173,9 +212,11 @@ export default function Home() {
                             <>
                                 <Link to="/keranjang" className="text-rc-muted hover:text-rc-logo transition p-2 relative" title="Keranjang">
                                     <i className="fa-solid fa-cart-shopping text-lg sm:text-[20px]"></i>
+                                    {cartCount > 0 && <span className="absolute top-0 right-0 w-3 h-3 sm:w-3.5 sm:h-3.5 bg-rc-logo text-rc-bg text-[7px] sm:text-[8px] font-bold flex items-center justify-center rounded-full border-[0.5px] border-rc-bg">{cartCount}</span>}
                                 </Link>
                                 <Link to="/chat" className="text-rc-muted hover:text-rc-logo transition p-2 relative" title="Chat">
                                     <i className="fa-solid fa-comment-dots text-lg sm:text-[20px]"></i>
+                                    {chatUnreadCount > 0 && <span className="absolute top-0 right-0 w-3 h-3 sm:w-3.5 sm:h-3.5 bg-blue-500 text-white text-[7px] sm:text-[8px] font-bold flex items-center justify-center rounded-full border-[0.5px] border-rc-bg animate-pulse">{chatUnreadCount}</span>}
                                 </Link>
 
                                 {/* Ikon Lonceng */}
@@ -411,15 +452,56 @@ export default function Home() {
             {/* Flash Sale Section */}
             {!searchQuery && flashSaleProducts.length > 0 && (
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10">
-                    <div className="flex items-center gap-3 mb-6 border-[0.5px] border-rc-logo/50 bg-rc-card p-4 rounded-md">
-                        <i className="fa-solid fa-bolt text-rc-logo text-xl"></i>
-                        <h2 className="text-lg md:text-xl font-bold uppercase text-rc-logo">FLASH SALE</h2>
-                        <span className="bg-rc-logo text-rc-bg px-3 py-1 rounded text-[10px] font-bold ml-auto md:ml-4 uppercase">BERAKHIR SEGERA</span>
+                    <div className="flex items-center gap-3 mb-6 border-[0.5px] border-rc-logo/30 bg-rc-card/50 p-4 rounded-2xl">
+                        <i className="fa-solid fa-bolt text-rc-logo text-xl animate-pulse"></i>
+                        <h2 className="text-lg md:text-xl font-black uppercase text-rc-logo tracking-tighter">FLASH SALE</h2>
+                        {timeLeft && timeLeft !== 'BERAKHIR' && (
+                            <div className="ml-auto flex items-center gap-3">
+                                <span className="text-[10px] text-rc-muted font-black uppercase hidden md:inline tracking-widest">Berakhir dalam:</span>
+                                <div className="bg-rc-logo text-rc-bg px-4 py-2 rounded-xl font-black tracking-[0.2em] shadow-[0_0_15px_rgba(255,215,0,0.3)]">
+                                    {timeLeft}
+                                </div>
+                            </div>
+                        )}
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-                        {flashSaleProducts.slice(0, 6).map(product => (
-                            <ProductCard key={`flash-${product.id}`} product={product} hideActions={true} />
-                        ))}
+                    
+                    {/* Horizontal Scroll Flash Sale Container */}
+                    <div className="relative group">
+                        <div 
+                            id="flash-sale-container"
+                            className="flex overflow-x-auto gap-4 md:gap-6 pb-6 no-scrollbar snap-x scroll-smooth"
+                        >
+                            {flashSaleProducts.slice(0, 15).map(product => (
+                                <div key={`flash-${product.id}`} className="flex-shrink-0 w-[170px] md:w-[240px] snap-start">
+                                    <ProductCard product={product} hideActions={true} />
+                                </div>
+                            ))}
+                            
+                            {/* Lihat Lengkap Button Card */}
+                            <div 
+                                onClick={() => navigate('/flash-sale')}
+                                className="flex-shrink-0 w-[170px] md:w-[240px] snap-start flex flex-col items-center justify-center bg-rc-card/30 rounded-2xl border-[0.5px] border-rc-logo/20 group/btn hover:bg-rc-logo/5 transition-all cursor-pointer"
+                            >
+                                <div className="w-14 h-14 rounded-full bg-rc-logo/10 border border-rc-logo/20 flex items-center justify-center mb-4 group-hover/btn:bg-rc-logo transition-all duration-300">
+                                    <i className="fa-solid fa-arrow-right text-xl text-rc-logo group-hover/btn:text-rc-bg group-hover/btn:translate-x-1 transition-all"></i>
+                                </div>
+                                <p className="text-rc-logo font-black text-[10px] uppercase tracking-[0.3em] text-center">Lihat Semua</p>
+                            </div>
+                        </div>
+
+                        {/* Navigation Arrows for Desktop */}
+                        <button 
+                            onClick={() => document.getElementById('flash-sale-container').scrollBy({ left: -300, behavior: 'smooth' })}
+                            className="absolute left-[-20px] top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-rc-bg/80 border border-rc-main/10 text-rc-main hidden md:flex items-center justify-center hover:bg-rc-logo hover:text-rc-bg transition-all shadow-2xl z-10 opacity-0 group-hover:opacity-100"
+                        >
+                            <i className="fa-solid fa-chevron-left"></i>
+                        </button>
+                        <button 
+                            onClick={() => document.getElementById('flash-sale-container').scrollBy({ left: 300, behavior: 'smooth' })}
+                            className="absolute right-[-20px] top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-rc-bg/80 border border-rc-main/10 text-rc-main hidden md:flex items-center justify-center hover:bg-rc-logo hover:text-rc-bg transition-all shadow-2xl z-10 opacity-0 group-hover:opacity-100"
+                        >
+                            <i className="fa-solid fa-chevron-right"></i>
+                        </button>
                     </div>
                 </div>
             )}

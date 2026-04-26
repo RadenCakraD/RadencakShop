@@ -16,8 +16,7 @@ export default function EditUserSettingsModal({ isOpen, onClose, userData, onSuc
         if (userData) {
             setFormData({
                 name: userData.name || '',
-                no_hp: userData.no_hp || '',
-                alamat: userData.alamat || ''
+                no_hp: userData.no_hp || ''
             });
         }
     }, [userData]);
@@ -31,7 +30,6 @@ export default function EditUserSettingsModal({ isOpen, onClose, userData, onSuc
         const data = new FormData();
         data.append('name', formData.name);
         data.append('no_hp', formData.no_hp);
-        data.append('alamat', formData.alamat);
         if (avatarFile) data.append('avatar', avatarFile);
 
         try {
@@ -94,19 +92,7 @@ export default function EditUserSettingsModal({ isOpen, onClose, userData, onSuc
                         </div>
                     </div>
 
-                    <div className="group relative">
-                        <label className="text-[10px] font-light tracking-[0.2em] text-rc-muted uppercase block mb-2 group-focus-within:text-rc-logo transition-colors">Alamat Pengiriman</label>
-                        <div className="relative">
-                            <i className="fa-solid fa-map-location-dot absolute left-4 top-4 text-rc-muted group-focus-within:text-rc-logo transition-colors"></i>
-                            <textarea 
-                                name="alamat" 
-                                value={formData.alamat} 
-                                onChange={handleInput} 
-                                rows="2" 
-                                className="w-full bg-rc-bg/50 border-[0.5px] border-rc-main/20 rounded-2xl pl-12 pr-4 py-4 text-sm font-light tracking-wide text-rc-main focus:outline-none focus:border-rc-logo transition-all"
-                            ></textarea>
-                        </div>
-                    </div>
+
 
                     <div className="group relative">
                         <label className="text-[9px] font-light tracking-[0.2em] text-rc-muted uppercase block mb-2 transition-colors">Foto Profil Baru</label>

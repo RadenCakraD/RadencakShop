@@ -16,14 +16,16 @@ export default function Information() {
 
     // Review Modal States
     const [isReviewOpen, setIsReviewOpen] = useState(false);
-    const [reviewForm, setReviewForm] = useState({ order_id: null, product_id: null, rating: 5, comment: '' });
+    const [reviewForm, setReviewForm] = useState({ 
+        order_id: null, 
+        product_id: null, 
+        rating: 5, 
+        comment: '',
+        courier_rating: 5,
+        courier_comment: ''
+    });
     const [reviewProduct, setReviewProduct] = useState(null);
     const [submitting, setSubmitting] = useState(false);
-
-    // Tracking Modal States
-    const [isTrackingOpen, setIsTrackingOpen] = useState(false);
-    const [trackingData, setTrackingData] = useState([]);
-    const [trackingOrder, setTrackingOrder] = useState(null);
     const [loadingTrack, setLoadingTrack] = useState(false);
 
     const fetchOrders = async () => {
@@ -73,31 +75,9 @@ export default function Information() {
         }
     };
 
-    const openReviewModal = (orderId, product) => {
-        setReviewProduct(product);
-        setReviewForm({ order_id: orderId, product_id: product.id, rating: 5, comment: '' });
-        setIsReviewOpen(true);
-    };
-
-    const submitReview = async (e) => {
-        e.preventDefault();
-        setSubmitting(true);
-        try {
-            await axios.post(`/api/orders/${reviewForm.order_id}/review`, {
-                product_id: reviewForm.product_id,
-                rating: reviewForm.rating,
-                comment: reviewForm.comment
-            }, {
-                headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
-            });
-            alert("Terima kasih atas ulasan Anda!");
-            setIsReviewOpen(false);
-        } catch (err) {
-            alert("Gagal mengirim ulasan: " + (err.response?.data?.message || err.message));
-        } finally {
-            setSubmitting(false);
-        }
-    };
+    const [isTrackingOpen, setIsTrackingOpen] = useState(false);
+    const [trackingData, setTrackingData] = useState([]);
+    const [trackingOrder, setTrackingOrder] = useState(null);
 
     const handleTrackOrder = async (order) => {
         setTrackingOrder(order);
@@ -114,6 +94,94 @@ export default function Information() {
             setLoadingTrack(false);
         }
     };
+
+    const [reviewImages, setReviewImages] = useState([]);
+    const [reviewPreviews, setReviewPreviews] = useState([]);
+
+    const handleImageChange = (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length + reviewImages.length > 5) {
+            alert("Maksimal 5 foto per ulasan.");
+            return;
+        }
+
+        const newImages = [...reviewImages, ...files];
+        setReviewImages(newImages);
+
+        const newPreviews = files.map(file => URL.createObjectURL(file));
+        setReviewPreviews([...reviewPreviews, ...newPreviews]);
+    };
+
+    const removeImage = (index) => {
+        const newImages = [...reviewImages];
+        newImages.splice(index, 1);
+        setReviewImages(newImages);
+
+        const newPreviews = [...reviewPreviews];
+        newPreviews.splice(index, 1);
+        setReviewPreviews(newPreviews);
+    };
+
+    const [isEditing, setIsEditing] = useState(false);
+
+    const openReviewModal = (orderId, product, existingReview = null) => {
+        setReviewProduct(product);
+        if (existingReview) {
+            setReviewForm({
+                order_id: orderId,
+                product_id: product.id,
+                rating: existingReview.rating || 5,
+                comment: existingReview.comment || '',
+                courier_rating: existingReview.courier_rating || 5,
+                courier_comment: existingReview.courier_comment || ''
+            });
+            setIsEditing(true);
+            if (existingReview.images) {
+                setReviewPreviews(existingReview.images.map(img => `/storage/${img}`));
+            } else {
+                setReviewPreviews([]);
+            }
+        } else {
+            setReviewForm({ order_id: orderId, product_id: product.id, rating: 5, comment: '', courier_rating: 5, courier_comment: '' });
+            setIsEditing(false);
+            setReviewPreviews([]);
+            setReviewImages([]);
+        }
+        setIsReviewOpen(true);
+    };
+
+    const submitReview = async (e) => {
+        e.preventDefault();
+        setSubmitting(true);
+        const formData = new FormData();
+        formData.append('product_id', reviewForm.product_id);
+        formData.append('rating', reviewForm.rating);
+        formData.append('comment', reviewForm.comment);
+        formData.append('courier_rating', reviewForm.courier_rating);
+        formData.append('courier_comment', reviewForm.courier_comment);
+        reviewImages.forEach((img, i) => {
+            formData.append(`images[${i}]`, img);
+        });
+
+        try {
+            await axios.post(`/api/orders/${reviewForm.order_id}/review`, formData, {
+                headers: { 
+                    Authorization: `Bearer ${localStorage.getItem('auth_token')}`,
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            alert(isEditing ? "Ulasan berhasil diperbarui!" : "Terima kasih atas ulasan Anda!");
+            setIsReviewOpen(false);
+            setReviewImages([]);
+            setReviewPreviews([]);
+            fetchOrders();
+        } catch (err) {
+            alert("Gagal mengirim ulasan: " + (err.response?.data?.message || err.message));
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
 
     const formatRp = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(num);
 
@@ -162,7 +230,9 @@ export default function Information() {
 
                     <div className="p-6 min-h-[300px]">
                         {loading ? (
-                            <div className="flex items-center justify-center h-48 opacity-50"><i className="fa-solid fa-spinner fa-spin text-3xl text-rc-logo"></i></div>
+                            <div className="space-y-4">
+                                {[1,2,3].map(i => <div key={i} className="w-full h-32 bg-rc-card border-[0.5px] border-rc-main/10 rounded-xl animate-pulse"></div>)}
+                            </div>
                         ) : orders[activeTab]?.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-48 text-rc-muted font-light tracking-wide opacity-70">
                                 <i className="fa-solid fa-box-open text-4xl mb-4 text-rc-main/20"></i>
@@ -187,7 +257,12 @@ export default function Information() {
                                             {order.items?.map((item, idx) => (
                                                 <div key={idx} className="flex gap-4 items-center">
                                                     <div className="w-16 h-16 bg-rc-card rounded shadow-inner border-[0.5px] border-rc-main/5 overflow-hidden flex-shrink-0">
-                                                        <img src={item.product?.primary_image} className="w-full h-full object-cover" />
+                                                        {(() => {
+                                                            const imgUrl = item.variant?.image_url 
+                                                                ? (item.variant.image_url.startsWith('http') ? item.variant.image_url : `/storage/${item.variant.image_url}`)
+                                                                : (item.product?.primary_image?.startsWith('http') ? item.product.primary_image : `/storage/${item.product?.primary_image}`);
+                                                            return <img src={imgUrl} className="w-full h-full object-cover" alt="Produk" />;
+                                                        })()}
                                                     </div>
                                                     <div className="flex-grow">
                                                         <h4 className="text-sm font-light text-rc-main mb-1 truncate">{item.product_name}</h4>
@@ -195,9 +270,13 @@ export default function Information() {
                                                             <span className="text-rc-muted font-light">x{item.quantity}</span>
                                                             <span className="text-rc-logo tracking-wider">{formatRp(item.price)}</span>
                                                         </div>
-                                                        {activeTab === 'completed' && (
-                                                            <button onClick={() => openReviewModal(order.id, item.product)} className="mt-2 text-[10px] uppercase font-light tracking-widest text-rc-bg bg-rc-logo px-3 py-1 rounded hover:bg-yellow-400 transition shadow-[0_0_8px_rgba(255,215,0,0.3)]">
-                                                                Beri Penilaian <i className="fa-solid fa-star text-white/70 ml-1"></i>
+                                                         {activeTab === 'completed' && (
+                                                            <button 
+                                                                onClick={() => openReviewModal(order.id, item.product, item.review)} 
+                                                                className={`mt-2 text-[10px] uppercase font-bold tracking-widest px-3 py-1 rounded transition shadow-sm flex items-center gap-2 ${item.review ? 'bg-rc-bg border border-rc-logo text-rc-logo hover:bg-rc-logo/10' : 'bg-rc-logo text-rc-bg hover:bg-yellow-400'}`}
+                                                            >
+                                                                {item.review ? 'Edit Penilaian' : 'Beri Penilaian'} 
+                                                                <i className={`fa-solid ${item.review ? 'fa-pen-to-square' : 'fa-star'}`}></i>
                                                             </button>
                                                         )}
                                                     </div>
@@ -236,13 +315,7 @@ export default function Information() {
                                                             }
                                                             window.snap.pay(order.snap_token, {
                                                                 onSuccess: async () => { 
-                                                                    try {
-                                                                        await axios.post('/api/checkout/success-prototype', { snap_token: order.snap_token }, {
-                                                                            headers: { Authorization: `Bearer ${localStorage.getItem('auth_token')}` }
-                                                                        });
-                                                                    } catch(e) {}
-                                                                    alert("Pembayaran berhasil!"); 
-                                                                    setActiveTab('processing');
+                                                                    alert("Pembayaran berhasil! Silahkan tunggu validasi sistem."); 
                                                                     fetchOrders(); 
                                                                 },
                                                                 onPending: () => { alert("Menunggu pembayaran Anda."); },
@@ -298,7 +371,9 @@ export default function Information() {
                         
                         <div className="overflow-y-auto no-scrollbar flex-1 relative pl-4 pr-2">
                             {loadingTrack ? (
-                                <div className="py-10 text-center"><i className="fa-solid fa-spinner fa-spin text-rc-logo text-2xl"></i></div>
+                                <div className="py-8 space-y-4">
+                                    {[1,2].map(i => <div key={i} className="w-full h-16 bg-rc-bg rounded-lg animate-pulse border-[0.5px] border-rc-main/10"></div>)}
+                                </div>
                             ) : trackingData.length > 0 ? (
                                 <div className="space-y-6 before:absolute before:inset-y-0 before:left-[21px] before:w-[0.5px] before:bg-rc-main/10">
                                     {trackingData.map((t, idx) => (
@@ -359,10 +434,59 @@ export default function Information() {
                                     onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
                                 ></textarea>
                             </div>
-                            <div className="flex justify-end gap-3">
+
+                            <div className="mb-6">
+                                <label className="block text-[10px] uppercase font-light tracking-widest text-rc-muted mb-3">Foto Produk (Opsional)</label>
+                                <div className="flex flex-wrap gap-3">
+                                    {reviewPreviews.map((preview, idx) => (
+                                        <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-rc-main/10">
+                                            <img src={preview} className="w-full h-full object-cover" />
+                                            <button 
+                                                type="button" 
+                                                onClick={() => removeImage(idx)}
+                                                className="absolute top-0 right-0 bg-red-500 text-white w-5 h-5 flex items-center justify-center text-[10px]"
+                                            >
+                                                <i className="fa-solid fa-xmark"></i>
+                                            </button>
+                                        </div>
+                                    ))}
+                                    {reviewImages.length < 5 && (
+                                        <label className="w-16 h-16 rounded-lg border-[0.5px] border-dashed border-rc-main/30 flex flex-col items-center justify-center text-rc-muted hover:border-rc-logo hover:text-rc-logo cursor-pointer transition">
+                                            <i className="fa-solid fa-camera text-sm mb-1"></i>
+                                            <span className="text-[8px] font-bold uppercase">Tambah</span>
+                                            <input type="file" multiple accept="image/*" className="hidden" onChange={handleImageChange} />
+                                        </label>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="mb-6 pt-4 border-t border-rc-main/10">
+                                <label className="block text-[10px] uppercase font-bold tracking-widest text-rc-logo mb-4">Penilaian Kurir</label>
+                                <div className="mb-4 flex justify-center gap-2 text-2xl">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                        <button
+                                            type="button"
+                                            key={star}
+                                            onClick={() => setReviewForm({ ...reviewForm, courier_rating: star })}
+                                            className={`transition-all duration-300 ${star <= reviewForm.courier_rating ? 'text-rc-logo drop-shadow-[0_0_8px_rgba(255,215,0,0.5)] scale-110' : 'text-rc-main/20 hover:text-rc-logo/50'}`}
+                                        >
+                                            <i className="fa-solid fa-truck-fast"></i>
+                                        </button>
+                                    ))}
+                                </div>
+                                <textarea
+                                    className="w-full bg-transparent border-[0.5px] border-rc-main/20 rounded text-rc-main p-3 text-sm focus:border-rc-logo outline-none transition custom-scrollbar font-light"
+                                    rows="2"
+                                    placeholder="Kurir sangat ramah dan cepat..."
+                                    value={reviewForm.courier_comment}
+                                    onChange={(e) => setReviewForm({ ...reviewForm, courier_comment: e.target.value })}
+                                ></textarea>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-rc-main/10">
                                 <button type="button" onClick={() => setIsReviewOpen(false)} className="px-4 py-2 text-xs uppercase font-light tracking-widest text-rc-muted hover:text-rc-main transition">Batal</button>
-                                <button type="submit" disabled={submitting} className="px-6 py-2 bg-rc-logo text-rc-bg text-xs uppercase font-light tracking-widest rounded hover:bg-yellow-400 transition shadow-[0_0_10px_rgba(255,215,0,0.15)] disabled:opacity-50">
-                                    {submitting ? 'Menyimpan...' : 'Kirim Ulasan'}
+                                <button type="submit" disabled={submitting} className="px-6 py-2 bg-rc-logo text-rc-bg text-xs uppercase font-bold tracking-widest rounded hover:bg-yellow-400 transition shadow-[0_0_10px_rgba(255,215,0,0.15)] disabled:opacity-50">
+                                    {submitting ? 'Menyimpan...' : (isEditing ? 'Simpan Perubahan' : 'Kirim Ulasan')}
                                 </button>
                             </div>
                         </form>

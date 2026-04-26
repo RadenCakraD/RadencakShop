@@ -183,7 +183,16 @@ export default function AddProductModal({ isOpen, onClose, onSuccess, initialPro
                                     <label className="text-xs font-semibold text-rc-muted block mb-1 uppercase">Kategori</label>
                                     <select name="kategori" value={formData.kategori} onChange={handleInput} className="w-full bg-rc-card border-[0.5px] border-rc-main/30 rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-rc-logo">
                                         <option value="Elektronik">Elektronik</option>
-                                        <option value="Pakaian">Pakaian</option>
+                                        <option value="Pakaian Pria">Pakaian Pria</option>
+                                        <option value="Pakaian Wanita">Pakaian Wanita</option>
+                                        <option value="Sepatu & Tas">Sepatu & Tas</option>
+                                        <option value="Kesehatan & Kecantikan">Kesehatan & Kecantikan</option>
+                                        <option value="Makanan & Minuman">Makanan & Minuman</option>
+                                        <option value="Perlengkapan Rumah">Perlengkapan Rumah</option>
+                                        <option value="Otomotif">Otomotif</option>
+                                        <option value="Olahraga & Outdoor">Olahraga & Outdoor</option>
+                                        <option value="Hobi & Koleksi">Hobi & Koleksi</option>
+                                        <option value="Aksesoris & Perhiasan">Aksesoris & Perhiasan</option>
                                         <option value="Lainnya">Lainnya</option>
                                     </select>
                                 </div>

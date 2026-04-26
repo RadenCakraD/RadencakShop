@@ -90,6 +90,13 @@ class VoucherController extends Controller
             return response()->json(['message' => 'Kode voucher tidak valid'], 404);
         }
 
+        $alreadyUsed = \App\Models\Order::where('user_id', $request->user()->id)
+            ->where('voucher_code', $request->code)
+            ->exists();
+        if ($alreadyUsed) {
+            return response()->json(['message' => 'Anda sudah pernah menggunakan voucher ini'], 400);
+        }
+
         if (now()->greaterThanOrEqualTo($voucher->valid_until)) {
             return response()->json(['message' => 'Kode voucher telah kedaluwarsa'], 400);
         }

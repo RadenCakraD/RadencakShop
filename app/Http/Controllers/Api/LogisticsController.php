@@ -23,14 +23,23 @@ class LogisticsController extends Controller
         $totalInDelivery = Order::where('status', 'delivering')->count();
         $totalProcessing = Order::whereIn('status', ['picking_up', 'at_logistics', 'ready_for_pickup'])->count();
         $totalDelivered = Order::whereIn('status', ['delivered', 'completed'])->count();
+        $totalFailed = Order::where('status', 'failed_delivery')->count();
 
         $recentTracks = OrderTracking::with('order')->latest()->take(10)->get();
+
+        $totalPackages = $totalInDelivery + $totalProcessing + $totalDelivered + $totalFailed;
+        $efficiency = $totalPackages > 0 ? min(98, round(($totalDelivered / $totalPackages) * 100)) : 85;
+        $security = $totalPackages > 0 ? min(99, round((($totalPackages - $totalFailed) / $totalPackages) * 100)) : 99;
 
         return response()->json([
             'total_in_delivery' => $totalInDelivery,
             'total_processing' => $totalProcessing,
             'total_delivered' => $totalDelivered,
-            'recent_tracks' => $recentTracks
+            'recent_tracks' => $recentTracks,
+            'performance' => [
+                'efficiency' => $efficiency,
+                'security' => $security
+            ]
         ]);
     }
 
@@ -91,28 +100,42 @@ class LogisticsController extends Controller
             'delivery_courier_id' => 'required|exists:users,id'
         ]);
 
-        $order = Order::findOrFail($orderId);
-        
-        if ($order->status !== 'at_logistics') {
-            return response()->json(['message' => 'Hanya paket yang berada di gudang yang bisa di-assign.'], 400);
+        try {
+            DB::transaction(function () use ($orderId, $request) {
+                $order = Order::where('id', $orderId)->lockForUpdate()->firstOrFail();
+                
+                if ($order->status !== 'at_logistics') {
+                    throw new \Exception('Hanya paket yang berada di gudang yang bisa di-assign.');
+                }
+
+                $order->update([
+                    'status' => 'delivering',
+                    'delivery_courier_id' => $request->delivery_courier_id,
+                    'delivery_fee_earned' => 2000 // Tarif Antar tetap
+                ]);
+
+                OrderTracking::create([
+                    'order_id' => $order->id,
+                    'status' => 'Kurir Menuju Lokasi Anda',
+                    'location' => 'Keluar dari Gudang',
+                    'note' => 'Paket telah diserahkan kepada kurir pengantar.',
+                    'user_id' => $request->user()->id
+                ]);
+            });
+            
+            return response()->json(['message' => 'Penugasan pengantaran berhasil.']);
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 400);
         }
+    }
 
-        DB::transaction(function () use ($order, $request) {
-            $order->update([
-                'status' => 'delivering',
-                'delivery_courier_id' => $request->delivery_courier_id,
-                'delivery_fee_earned' => 2000 // Tarif Antar tetap
-            ]);
-
-            OrderTracking::create([
-                'order_id' => $order->id,
-                'status' => 'Kurir Menuju Lokasi Anda',
-                'location' => 'Keluar dari Gudang',
-                'note' => 'Paket telah diserahkan kepada kurir pengantar.',
-                'user_id' => $request->user()->id
-            ]);
-        });
-
-        return response()->json(['message' => 'Penugasan pengantaran berhasil.']);
+    public function getStaffs(Request $request)
+    {
+        $user = $request->user();
+        if (!in_array($user->role, ['admin_logistik', 'super_admin'])) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+        $staffs = \App\Models\User::where('role', 'logistik_staff')->get();
+        return response()->json($staffs);
     }
 }

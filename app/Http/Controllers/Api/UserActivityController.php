@@ -17,7 +17,7 @@ class UserActivityController extends Controller
     {
         $user = $request->user();
         
-        $orders = Order::with(['items', 'shop'])
+        $orders = Order::with(['items.product', 'items.variant', 'items.review', 'shop'])
             ->where('user_id', $user->id)
             ->latest()
             ->get();
@@ -38,7 +38,7 @@ class UserActivityController extends Controller
                 $grouped['processing'][] = $order;
             } elseif (in_array($status, ['delivering', 'delivered'])) {
                 $grouped['shipped'][] = $order;
-            } elseif ($status === 'completed') {
+            } elseif (in_array($status, ['completed', 'failed_delivery', 'cancelled'])) {
                 $grouped['completed'][] = $order;
             }
         }
@@ -73,7 +73,10 @@ class UserActivityController extends Controller
         $request->validate([
             'product_id' => 'required|exists:products,id',
             'rating' => 'required|integer|min:1|max:5',
-            'comment' => 'nullable|string|max:1000'
+            'comment' => 'nullable|string|max:1000',
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048',
+            'courier_rating' => 'nullable|integer|min:1|max:5',
+            'courier_comment' => 'nullable|string|max:500'
         ]);
 
         $user = $request->user();
@@ -83,9 +86,28 @@ class UserActivityController extends Controller
             ->where('status', 'completed')
             ->firstOrFail();
             
+        // Handle existing images if editing
+        $existingReview = Review::where(['user_id' => $user->id, 'order_id' => $order->id, 'product_id' => $request->product_id])->first();
+        $imagePaths = $existingReview ? ($existingReview->images ?? []) : [];
+
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $file) {
+                $path = $file->store('reviews', 'public');
+                $imagePaths[] = $path;
+            }
+        }
+
+        $reviewData = [
+            'rating' => $request->rating, 
+            'comment' => $request->comment,
+            'images' => $imagePaths,
+            'courier_rating' => $request->courier_rating,
+            'courier_comment' => $request->courier_comment
+        ];
+
         $review = Review::updateOrCreate(
             ['user_id' => $user->id, 'order_id' => $order->id, 'product_id' => $request->product_id],
-            ['rating' => $request->rating, 'comment' => $request->comment]
+            $reviewData
         );
 
         return response()->json(['message' => 'Penilaian berhasil disimpan!', 'review' => $review]);

@@ -1,12 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import useSWR from 'swr';
 
 const fetcher = url => axios.get(url).then(res => res.data);
 
 export default function Chat() {
     const navigate = useNavigate();
+
+    const location = useLocation();
+    const discussedProduct = location.state?.discussedProduct;
+    const [attachedProduct, setAttachedProduct] = useState(discussedProduct || null);
 
     const [activeRoom, setActiveRoom] = useState(null);
     const [inputText, setInputText] = useState('');
@@ -33,24 +37,59 @@ export default function Chat() {
         }
     }, [navigate]);
 
-    // Use SWR for real-time polling (3 seconds)
+    // Use SWR for fetching initially
     const { data: rawRoomsData, isLoading: loadingRooms, mutate: mutateRooms } = useSWR('/api/chat', fetcher, { 
-        refreshInterval: 3000,
         revalidateOnFocus: true
     });
     const rooms = rawRoomsData?.chats || [];
 
-    // Auto-select first room
+    const hasAutoSelectedRef = useRef(false);
+
+    // Auto-select room
     useEffect(() => {
-        if (!activeRoom && rooms.length > 0) {
-            setActiveRoom(rooms[0]);
+        if (rooms.length > 0 && !hasAutoSelectedRef.current) {
+            if (attachedProduct) {
+                const shopRoom = rooms.find(r => r.target_shop_id === attachedProduct.shop.id && !r.is_seller);
+                if (shopRoom) {
+                    setActiveRoom(shopRoom);
+                    hasAutoSelectedRef.current = true;
+                }
+            } else {
+                setActiveRoom(rooms[0]);
+                hasAutoSelectedRef.current = true;
+            }
         }
-    }, [rooms, activeRoom]);
+    }, [rooms, attachedProduct]);
 
     const { data: rawMessagesData, isLoading: loadingMessages, mutate: mutateMessages } = useSWR(activeRoom ? `/api/chat/${activeRoom.id}` : null, fetcher, { 
-        refreshInterval: 3000,
         revalidateOnFocus: true
     });
+
+    // Laravel Echo Realtime Listener
+    useEffect(() => {
+        if (!activeRoom || !window.Echo) return;
+
+        const channel = window.Echo.private(`chat.${activeRoom.id}`)
+            .listen('MessageSent', (e) => {
+                // Incoming message via WebSocket
+                mutateMessages(prev => ({
+                    ...prev,
+                    messages: [...(prev?.messages || []), e.message]
+                }), false);
+                
+                mutateRooms(prev => ({
+                    ...prev,
+                    chats: (prev?.chats || []).map(r => r.id === activeRoom.id ? { ...r, latest_message: e.message.message } : r)
+                }), false);
+                
+                scrollToBottom();
+            });
+
+        return () => {
+            channel.stopListening('MessageSent');
+            window.Echo.leave(`chat.${activeRoom.id}`);
+        };
+    }, [activeRoom]);
     const messages = rawMessagesData?.messages || [];
 
     // Local Scroll logic tracking
@@ -74,11 +113,18 @@ export default function Chat() {
 
         setSending(true);
         const originalText = inputText;
+        let finalMessage = inputText;
+        
+        if (attachedProduct) {
+            finalMessage = `[PRODUCT_JSON::${JSON.stringify({slug: attachedProduct.slug, nama: attachedProduct.nama_produk, image: attachedProduct.primary_image, harga: attachedProduct.harga_jual})}] ${inputText}`;
+        }
+        
         setInputText(''); // optimistic clear
+        setAttachedProduct(null); // clear attachment
 
         try {
             const res = await axios.post(`/api/chat/${activeRoom.id}/message`, {
-                message: originalText,
+                message: finalMessage,
                 as_shop: activeRoom.is_seller
             });
 
@@ -90,7 +136,7 @@ export default function Chat() {
             
             mutateRooms(prev => ({
                 ...prev,
-                chats: (prev?.chats || []).map(r => r.id === activeRoom.id ? { ...r, latest_message: originalText } : r)
+                chats: (prev?.chats || []).map(r => r.id === activeRoom.id ? { ...r, latest_message: finalMessage } : r)
             }), false);
 
             scrollToBottom();
@@ -105,6 +151,8 @@ export default function Chat() {
     const handleSelectRoom = (room) => {
         if (activeRoom?.id !== room.id) {
             setActiveRoom(null); // Force skeletal frame resetting quickly
+            setAttachedProduct(null); // Clear product if switching away manually
+            window.history.replaceState({}, document.title);
             setTimeout(() => setActiveRoom(room), 0);
         }
     };
@@ -196,12 +244,40 @@ export default function Chat() {
                                 <div className="space-y-6 pb-4 relative z-10">
                                     {messages.map(msg => {
                                         const isMine = activeRoom.is_seller ? msg.sender_type === 'shop' : msg.sender_type === 'user';
+                                        
+                                        // Product Parsing Logic
+                                        let productBox = null;
+                                        let textMessage = msg.message || '';
+                                        
+                                        if (textMessage.startsWith('[PRODUCT_JSON::')) {
+                                            const endIdx = textMessage.indexOf('] ');
+                                            if (endIdx !== -1) {
+                                                const jsonPart = textMessage.substring(15, endIdx);
+                                                try {
+                                                    const parsed = JSON.parse(jsonPart);
+                                                    productBox = parsed;
+                                                    textMessage = textMessage.substring(endIdx + 2).trim();
+                                                } catch(e) {}
+                                            }
+                                        }
 
                                         return (
                                             <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                                                <div className={`max-w-[75%] px-5 py-3 text-sm font-bold leading-relaxed border-[1px] relative rounded-md ${isMine ? 'bg-rc-card text-rc-main border-rc-main/20' : 'bg-rc-bg text-rc-main border-rc-main/20'
-                                                    }`}>
-                                                    <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{msg.message}</div>
+                                                <div className={`max-w-[75%] px-5 py-3 text-sm font-bold leading-relaxed border-[1px] relative rounded-xl ${isMine ? 'bg-gradient-to-br from-rc-card to-[#1a1b22] text-rc-main border-rc-logo/30 shadow-[0_5px_15px_rgba(255,204,0,0.05)]' : 'bg-rc-bg text-rc-main border-rc-main/20 shadow-sm'}`}>
+                                                    
+                                                    {productBox && (
+                                                        <Link to={`/product/${productBox.slug}`} className={`flex items-center gap-3 p-3 mb-3 rounded-lg border-[0.5px] transition-colors ${isMine ? 'bg-black/40 border-rc-logo/20 hover:border-rc-logo/50' : 'bg-rc-card/50 border-rc-main/10 hover:border-rc-main/30'}`}>
+                                                            <img src={productBox.image} alt={productBox.nama} className="w-14 h-14 object-cover rounded bg-rc-bg border-[0.5px] border-rc-main/10" />
+                                                            <div className="flex flex-col overflow-hidden">
+                                                                <span className="text-[9px] uppercase font-black text-rc-muted tracking-widest mb-0.5">Produk Terkait</span>
+                                                                <span className="text-xs font-bold text-rc-main truncate block">{productBox.nama}</span>
+                                                                <span className="text-[10px] text-rc-logo font-bold mt-1 uppercase">Rp {Number(productBox.harga || 0).toLocaleString('id-ID')}</span>
+                                                            </div>
+                                                            <i className="fa-solid fa-chevron-right text-rc-muted text-xs ml-auto"></i>
+                                                        </Link>
+                                                    )}
+
+                                                    <div style={{ wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{textMessage}</div>
                                                     <span className={`text-[9px] mt-2 block tracking-widest uppercase font-bold ${isMine ? 'text-rc-muted text-right' : 'text-rc-muted/50 text-left'}`}>
                                                         {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
@@ -214,8 +290,25 @@ export default function Chat() {
                             )}
                         </div>
 
+                        {/* Kotak Produk yang Dibahas */}
+                        {attachedProduct && (
+                            <div className="bg-rc-card px-6 py-3 border-t-[0.5px] border-rc-main/20 z-10 flex items-center justify-between shadow-[0_-10px_20px_rgba(0,0,0,0.5)]">
+                                <div className="flex items-center gap-4">
+                                    <img src={attachedProduct.primary_image} alt="Product" className="w-12 h-12 object-cover rounded border-[0.5px] border-rc-main/20" />
+                                    <div>
+                                        <div className="text-[10px] font-black text-rc-muted uppercase tracking-widest mb-0.5">Memulai Diskusi Produk</div>
+                                        <div className="text-xs font-bold text-rc-main mb-0.5">{attachedProduct.nama_produk}</div>
+                                        <div className="text-[10px] text-rc-logo font-bold uppercase">Rp {Number(attachedProduct.harga_jual).toLocaleString('id-ID')}</div>
+                                    </div>
+                                </div>
+                                <button onClick={() => setAttachedProduct(null)} className="text-rc-muted hover:text-red-500 w-8 h-8 rounded-full hover:bg-red-500/10 flex items-center justify-center transition-colors">
+                                    <i className="fa-solid fa-xmark text-lg"></i>
+                                </button>
+                            </div>
+                        )}
+
                         {/* Kotak Input Teks */}
-                        <div className="bg-rc-bg p-4 border-t-[0.5px] border-rc-main/20 z-10">
+                        <div className="bg-rc-bg p-4 border-t-[0.5px] border-rc-main/20 z-10 relative">
                             <form onSubmit={handleSendMessage} className="flex gap-4 relative max-w-4xl mx-auto items-center">
                                 <input
                                     type="text"

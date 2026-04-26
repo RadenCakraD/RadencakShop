@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import useSWR from 'swr';
 import ProductCard from '../components/ProductCard';
+
+const fetcher = url => axios.get(url).then(res => res.data);
 
 export default function PublicShop() {
     const { id } = useParams();
@@ -11,6 +14,9 @@ export default function PublicShop() {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [activeCategory, setActiveCategory] = useState('Semua');
+
+    const { data: cartData } = useSWR(localStorage.getItem('auth_token') ? '/api/cart' : null, fetcher);
+    const { data: chatData } = useSWR(localStorage.getItem('auth_token') ? '/api/chat/unread-count' : null, fetcher);
 
     useEffect(() => {
         const fetchShop = async () => {
@@ -29,7 +35,18 @@ export default function PublicShop() {
         window.scrollTo(0, 0);
     }, [id]);
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center text-rc-logo bg-rc-bg font-bold"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
+    if (loading) return (
+        <div className="bg-rc-bg min-h-screen pb-20 font-sans">
+            <div className="bg-rc-card h-48 md:h-72 w-full animate-pulse border-b-[0.5px] border-rc-main/10"></div>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 relative -mt-20 pb-8 z-10 flex flex-col md:flex-row gap-6 items-start md:items-end">
+                <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-[2px] border-rc-bg bg-rc-card animate-pulse"></div>
+                <div className="flex-1 w-full"><div className="h-8 bg-rc-card w-1/3 rounded animate-pulse mb-2"></div><div className="h-4 bg-rc-card w-1/4 rounded animate-pulse"></div></div>
+            </div>
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 mt-10 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {[1,2,3,4,5].map(i => <div key={i} className="w-full aspect-square bg-rc-card border-[0.5px] border-rc-main/10 rounded-xl animate-pulse"></div>)}
+            </div>
+        </div>
+    );
 
     if (!shopData) {
         return (
@@ -56,6 +73,9 @@ export default function PublicShop() {
         return matchesCategory && matchesSearch;
     });
 
+    const cartCount = cartData?.data?.length || 0;
+    const chatUnreadCount = chatData?.unread_count || 0;
+
     return (
         <div className="bg-rc-bg min-h-screen pb-20 text-rc-main font-sans">
 
@@ -65,9 +85,16 @@ export default function PublicShop() {
                     <button onClick={() => navigate('/dashboard')} className="text-rc-muted hover:text-rc-main transition flex items-center gap-2 text-xs font-bold uppercase">
                         <i className="fa-solid fa-chevron-left"></i> E-COMMERCE
                     </button>
-                    <Link to="/keranjang" className="text-rc-muted hover:text-rc-main transition p-2">
-                        <i className="fa-solid fa-cart-shopping text-xl"></i>
-                    </Link>
+                    <div className="flex items-center gap-4">
+                        <Link to="/keranjang" className="text-rc-muted hover:text-rc-main transition p-2 relative">
+                            <i className="fa-solid fa-cart-shopping text-xl"></i>
+                            {cartCount > 0 && <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-rc-logo text-rc-bg text-[8px] font-bold flex items-center justify-center rounded-full border-[0.5px] border-rc-bg">{cartCount}</span>}
+                        </Link>
+                        <Link to="/chat" className="text-rc-muted hover:text-rc-main transition p-2 relative">
+                            <i className="fa-solid fa-comment-dots text-xl"></i>
+                            {chatUnreadCount > 0 && <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-blue-500 text-white text-[8px] font-bold flex items-center justify-center rounded-full border-[0.5px] border-rc-bg animate-pulse">{chatUnreadCount}</span>}
+                        </Link>
+                    </div>
                 </div>
             </div>
 
@@ -75,7 +102,7 @@ export default function PublicShop() {
             <div className="bg-rc-bg border-b-[0.5px] border-rc-main/10 relative">
                 <div className="w-full h-48 md:h-72 overflow-hidden bg-rc-bg relative group border-b-[0.5px] border-rc-main/10">
                     <img
-                        src={shop.foto_banner ? `/storage/${shop.foto_banner}` : defaultBanner}
+                        src={shop.banner_toko ? `/storage/${shop.banner_toko}` : defaultBanner}
                         className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80"
                         alt="Banner Toko"
                     />

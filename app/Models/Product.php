@@ -3,9 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Product extends Model
 {
+    use HasFactory, SoftDeletes;
+
     protected $guarded = [];
 
     protected $appends = ['primary_image'];
@@ -32,5 +36,5 @@ class Product extends Model
     public function variants() { return $this->hasMany(ProductVariant::class); }
     public function images() { return $this->hasMany(ProductImage::class); }
     public function reviews() { return $this->hasMany(Review::class); }
-    public function carts() { return $this->hasMany(Cart::class); }
+    public function orderItems() { return $this->hasMany(OrderItem::class); }
 }

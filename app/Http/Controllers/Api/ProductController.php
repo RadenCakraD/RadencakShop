@@ -9,20 +9,22 @@ use App\Models\ProductImage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
 
 class ProductController extends Controller
 {
     public function index(Request $request)
     {
-        $query = Product::with(['images', 'shop.user', 'variants'])->orderBy('created_at', 'desc');
-        
+        $products = Product::with(['images', 'shop.user', 'variants'])->withSum('orderItems', 'qty')->withAvg('reviews', 'rating')->orderBy('created_at', 'desc');
+            
         if ($request->has('category') && !empty($request->category) && $request->category !== 'Semua') {
-            $query->where('kategori', $request->category);
+            $products->where('kategori', $request->category);
         }
 
         if ($request->has('q') && !empty($request->q)) {
             $q = $request->q;
-            $query->where(function($qq) use ($q) {
+            $products->where(function($qq) use ($q) {
                 $qq->where('nama_produk', 'like', "%{$q}%")
                    ->orWhereHas('shop', function($sq) use ($q) {
                        $sq->where('nama_toko', 'like', "%{$q}%");
@@ -30,13 +32,33 @@ class ProductController extends Controller
             });
         }
 
-        $products = $query->paginate(12);
+        return response()->json($products->paginate(12));
+    }
+
+    public function getFlashSales(Request $request)
+    {
+        $products = Product::with(['images', 'shop.user', 'variants'])
+            ->withSum('orderItems', 'qty')
+            ->withAvg('reviews', 'rating')
+            ->where('is_flash_sale', true)
+            ->where(function($q) {
+                $q->whereNull('flash_sale_end')
+                  ->orWhere('flash_sale_end', '>=', now());
+            })
+            ->where(function($q) {
+                $q->whereNull('flash_sale_start')
+                  ->orWhere('flash_sale_start', '<=', now());
+            })
+            ->orderBy('created_at', 'desc')
+            ->get();
+            
         return response()->json($products);
     }
 
     public function show($slug)
     {
-        $product = Product::with(['images', 'variants', 'shop.user'])
+        $product = Product::with(['images', 'variants', 'shop.user', 'reviews.user'])
+                          ->withSum('orderItems', 'qty')
                           ->where('slug', $slug)
                           ->firstOrFail();
         return response()->json($product);
@@ -53,7 +75,7 @@ class ProductController extends Controller
             'stok' => 'required|integer|max:999999999',
             'deskripsi' => 'required|string',
             'berat' => 'required|numeric',
-            'images.*' => 'nullable|image|max:2048'
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
         ], [
             'harga_jual.max' => 'Peringatan: Harga Jual tidak boleh melebihi Rp 999 Juta!',
             'harga_dasar.max' => 'Peringatan: Harga Dasar (Coret) tidak boleh melebihi Rp 999 Juta!',
@@ -83,9 +105,13 @@ class ProductController extends Controller
                 $product->tinggi = 1;
                 $product->save();
 
+                $imagePaths = [];
+                $variantPaths = [];
                 if ($request->hasFile('images')) {
                     foreach ($request->file('images') as $index => $file) {
                         $path = $file->store('products', 'public');
+                        $imagePaths[] = $path;
+                        
                         ProductImage::create([
                             'product_id' => $product->id,
                             'is_primary' => ($index == 0),
@@ -100,6 +126,7 @@ class ProductController extends Controller
                             $imgPath = null;
                             if (isset($var['image']) && $var['image'] instanceof \Illuminate\Http\UploadedFile) {
                                 $imgPath = $var['image']->store('products/variants', 'public');
+                                $variantPaths[] = $imgPath;
                             }
                             \App\Models\ProductVariant::create([
                                 'product_id' => $product->id,
@@ -113,13 +140,21 @@ class ProductController extends Controller
                     }
                 }
 
+
+
+                if (!empty($imagePaths) || !empty($variantPaths)) {
+                    \App\Jobs\ProcessProductImages::dispatch($product->id, $imagePaths, $variantPaths);
+                }
+
                 return response()->json([
                     'message' => 'Produk berhasil ditambahkan!',
                     'product' => $product->load('images')
                 ], 201);
             });
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Gagal menyimpan produk: ' . $e->getMessage()], 500);
+            \Illuminate\Support\Facades\Log::error('Product Store Error: ' . $e->getMessage());
+            $msg = app()->isProduction() ? 'Terjadi kesalahan sistem saat menyimpan produk.' : $e->getMessage();
+            return response()->json(['message' => 'Gagal menyimpan produk: ' . $msg], 500);
         }
     }
 
@@ -141,7 +176,7 @@ class ProductController extends Controller
             'stok' => 'integer|max:999999999',
             'deskripsi' => 'string',
             'berat' => 'numeric',
-            'images.*' => 'nullable|image|max:2048'
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,webp|max:2048'
         ], [
             'harga_jual.max' => 'Peringatan: Harga Jual tidak boleh melebihi Rp 999 Juta!',
             'harga_dasar.max' => 'Peringatan: Harga Dasar (Coret) tidak boleh melebihi Rp 999 Juta!',
@@ -150,6 +185,8 @@ class ProductController extends Controller
 
         try {
             return DB::transaction(function () use ($request, $product) {
+                $imagePaths = [];
+                $variantPaths = [];
                 $product->update($request->only([
                     'nama_produk', 'harga_jual', 'harga_dasar', 'kategori', 'kondisi', 'stok', 'deskripsi', 'berat'
                 ]));
@@ -174,6 +211,7 @@ class ProductController extends Controller
                 if ($request->hasFile('images')) {
                     foreach ($request->file('images') as $file) {
                         $path = $file->store('products', 'public');
+                        $imagePaths[] = $path;
                         ProductImage::create([
                             'product_id' => $product->id,
                             'is_primary' => false, // Will re-evaluate below
@@ -206,6 +244,7 @@ class ProductController extends Controller
                             $imgPath = null;
                             if (isset($var['image']) && $var['image'] instanceof \Illuminate\Http\UploadedFile) {
                                 $imgPath = $var['image']->store('products/variants', 'public');
+                                $variantPaths[] = $imgPath;
                             }
                             \App\Models\ProductVariant::create([
                                 'product_id' => $product->id,
@@ -225,13 +264,21 @@ class ProductController extends Controller
                     \App\Models\ProductVariant::where('product_id', $product->id)->delete();
                 }
 
+
+
+                if (!empty($imagePaths) || !empty($variantPaths)) {
+                    \App\Jobs\ProcessProductImages::dispatch($product->id, $imagePaths, $variantPaths);
+                }
+
                 return response()->json([
                     'message' => 'Produk berhasil diperbarui', 
                     'product' => $product->load('images', 'variants')
                 ]);
             });
         } catch (\Exception $e) {
-            return response()->json(['message' => 'Gagal memperbarui produk: ' . $e->getMessage()], 500);
+            \Illuminate\Support\Facades\Log::error('Product Update Error: ' . $e->getMessage());
+            $msg = app()->isProduction() ? 'Terjadi kesalahan sistem saat memperbarui produk.' : $e->getMessage();
+            return response()->json(['message' => 'Gagal memperbarui produk: ' . $msg], 500);
         }
     }
 
@@ -258,6 +305,8 @@ class ProductController extends Controller
             \App\Models\ProductVariant::where('product_id', $product->id)->delete();
             
             $product->delete();
+
+
 
             return response()->json(['message' => 'Produk berhasil dihapus']);
         });

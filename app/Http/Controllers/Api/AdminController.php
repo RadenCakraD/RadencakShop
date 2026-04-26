@@ -8,6 +8,8 @@ use App\Models\Banner;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
 
 class AdminController extends Controller
 {
@@ -22,7 +24,10 @@ class AdminController extends Controller
 
     public function getActiveBanners()
     {
-        return response()->json(Banner::where('is_active', true)->orderBy('position', 'asc')->orderBy('created_at', 'desc')->get());
+        $banners = \Illuminate\Support\Facades\Cache::remember('banners.active', 60*24, function() {
+            return Banner::where('is_active', true)->orderBy('position', 'asc')->orderBy('created_at', 'desc')->get();
+        });
+        return response()->json($banners);
     }
 
     public function storeBanner(Request $request)
@@ -36,7 +41,13 @@ class AdminController extends Controller
             'link_url' => 'nullable|string',
         ]);
 
-        $path = $request->file('image')->store('banners', 'public');
+        $manager = new ImageManager(new Driver());
+        $image = $manager->read($request->file('image'));
+        $image->scaleDown(1920, 1080);
+        $encoded = $image->toJpeg(80);
+        $path = 'banners/' . uniqid() . '.jpg';
+        Storage::disk('public')->put($path, (string) $encoded);
+        
         $maxPosition = Banner::max('position');
 
         $banner = Banner::create([
@@ -48,6 +59,8 @@ class AdminController extends Controller
             'is_active' => true,
         ]);
 
+        \Illuminate\Support\Facades\Cache::forget('banners.active');
+
         return response()->json(['message' => 'Banner ditambahkan', 'banner' => $banner], 201);
     }
 
@@ -58,16 +71,22 @@ class AdminController extends Controller
         $banner = Banner::findOrFail($id);
 
         if ($request->hasFile('image')) {
-            if ($banner->image_url) {
-                Storage::disk('public')->delete($banner->image_url);
-            }
-            $banner->image_url = $request->file('image')->store('banners', 'public');
+            $manager = new ImageManager(new Driver());
+            $image = $manager->read($request->file('image'));
+            $image->scaleDown(1920, 1080);
+            $encoded = $image->toJpeg(80);
+            $path = 'banners/' . uniqid() . '.jpg';
+            Storage::disk('public')->put($path, (string) $encoded);
+            
+            $banner->image_url = $path;
         }
 
         $banner->title = $request->title;
         $banner->description = $request->description;
         $banner->link_url = $request->link_url;
         $banner->save();
+
+        \Illuminate\Support\Facades\Cache::forget('banners.active');
 
         return response()->json(['message' => 'Banner diperbarui', 'banner' => $banner]);
     }
@@ -79,6 +98,7 @@ class AdminController extends Controller
         foreach ($request->ordered_ids as $index => $id) {
             Banner::where('id', $id)->update(['position' => $index]);
         }
+        \Illuminate\Support\Facades\Cache::forget('banners.active');
         return response()->json(['message' => 'Urutan banner berhasil disimpan']);
     }
 
@@ -89,6 +109,8 @@ class AdminController extends Controller
         $banner = Banner::findOrFail($id);
         if ($banner->image_url) Storage::disk('public')->delete($banner->image_url);
         $banner->delete();
+
+        \Illuminate\Support\Facades\Cache::forget('banners.active');
 
         return response()->json(['message' => 'Banner dihapus']);
     }
@@ -102,7 +124,7 @@ class AdminController extends Controller
         if ($request->q) {
             $query->where('nama_produk', 'like', '%' . $request->q . '%');
         }
-        $products = $query->orderBy('created_at', 'desc')->get();
+        $products = $query->orderBy('created_at', 'desc')->paginate(50);
         return response()->json($products);
     }
 
@@ -111,10 +133,42 @@ class AdminController extends Controller
         if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
 
         $product = Product::findOrFail($id);
-        $product->is_flash_sale = !$product->is_flash_sale;
+        $product->is_flash_sale = $request->input('is_flash_sale', !$product->is_flash_sale);
+        
+        if ($product->is_flash_sale) {
+            $product->flash_sale_start = $request->input('flash_sale_start', now());
+            $product->flash_sale_end = $request->input('flash_sale_end', now()->addDay()->endOfDay());
+        } else {
+            $product->flash_sale_start = null;
+            $product->flash_sale_end = null;
+        }
+        
         $product->save();
 
-        return response()->json(['message' => 'Status flash sale diubah']);
+        return response()->json(['message' => 'Status flash sale diubah', 'product' => $product]);
+    }
+
+    public function bulkFlashSale(Request $request)
+    {
+        if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
+
+        $updates = $request->updates; // format: { id: boolean }
+        $start = $request->flash_sale_start;
+        $end = $request->flash_sale_end;
+
+        foreach ($updates as $id => $isFlashSale) {
+            $updateData = ['is_flash_sale' => $isFlashSale];
+            if ($isFlashSale) {
+                if ($start) $updateData['flash_sale_start'] = $start;
+                if ($end) $updateData['flash_sale_end'] = $end;
+            } else {
+                $updateData['flash_sale_start'] = null;
+                $updateData['flash_sale_end'] = null;
+            }
+            Product::where('id', $id)->update($updateData);
+        }
+
+        return response()->json(['message' => 'Status flash sale masal berhasil diperbarui']);
     }
 
     // Users
@@ -129,7 +183,7 @@ class AdminController extends Controller
                   ->orWhere('email', 'like', '%' . $request->q . '%');
         }
         
-        $users = $query->orderBy('created_at', 'desc')->get(['id', 'name', 'username', 'email', 'role']);
+        $users = $query->orderBy('created_at', 'desc')->paginate(50);
         return response()->json($users);
     }
 
@@ -157,7 +211,7 @@ class AdminController extends Controller
     {
         if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
 
-        $withdrawals = \App\Models\Withdrawal::with(['user', 'shop'])->orderBy('created_at', 'desc')->get();
+        $withdrawals = \App\Models\Withdrawal::with(['user', 'shop'])->orderBy('created_at', 'desc')->paginate(50);
         return response()->json($withdrawals);
     }
 
@@ -182,6 +236,21 @@ class AdminController extends Controller
 
         $w->status = 'rejected';
         $w->save();
+        // Catatan: Karena saldo toko/kurir dihitung secara dinamis dari sum(amount) di mana status != 'rejected',
+        // mengubah status menjadi 'rejected' akan otomatis membatalkan potongan saldo (saldo kembali secara virtual).
         return response()->json(['message' => 'Penarikan dana DITOLAK (saldo dikembalikan/gagal potong).']);
+    }
+    public function destroyUser(Request $request, $id)
+    {
+        if (!$this->isAdmin($request->user())) return response()->json(['message' => 'Unauthorized'], 403);
+        
+        $user = User::findOrFail($id);
+        
+        if ($user->email === 'radencakstudio@gmail.com') {
+            return response()->json(['message' => 'Akun Super Admin tidak bisa dihapus!'], 403);
+        }
+
+        $user->delete();
+        return response()->json(['message' => 'User berhasil dihapus']);
     }
 }

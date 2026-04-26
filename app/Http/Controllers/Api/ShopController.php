@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Shop;
 use Illuminate\Support\Facades\Storage;
+use Intervention\Image\ImageManager;
+use Intervention\Image\Drivers\Gd\Driver;
 
 class ShopController extends Controller
 {
@@ -37,18 +39,28 @@ class ShopController extends Controller
         $shop->kurir = json_encode($request->kurir ?? []);
 
         if ($request->hasFile('foto_profil')) {
-            $shop->foto_profil = $request->file('foto_profil')->store('shops/profiles', 'public');
+            $manager = new ImageManager(new Driver());
+            $img = $manager->read($request->file('foto_profil'));
+            $img->scaleDown(800, 800);
+            $path = 'shops/profiles/' . uniqid() . '.jpg';
+            Storage::disk('public')->put($path, (string) $img->toJpeg(75));
+            $shop->foto_profil = $path;
         }
 
         if ($request->hasFile('banner_toko')) {
-            $shop->banner_toko = $request->file('banner_toko')->store('shops/banners', 'public');
+            $manager = new ImageManager(new Driver());
+            $img = $manager->read($request->file('banner_toko'));
+            $img->scaleDown(1920, 1080);
+            $path = 'shops/banners/' . uniqid() . '.jpg';
+            Storage::disk('public')->put($path, (string) $img->toJpeg(75));
+            $shop->banner_toko = $path;
         }
 
         $shop->save();
 
-        // Update user role to toko (hanya jika dia bukan admin)
+        // Update user role to toko (hanya jika dia user biasa)
         $user = $request->user();
-        if($user->role !== 'admin') {
+        if($user->role === 'user' || $user->role === null) {
             $user->role = 'toko';
             $user->save();
         }
@@ -81,18 +93,34 @@ class ShopController extends Controller
         $request->validate([
             'nama_toko' => 'string|max:255',
             'deskripsi_toko' => 'nullable|string',
+            'alamat_toko' => 'nullable|string',
+            'latitude' => 'nullable|string',
+            'longitude' => 'nullable|string',
             'foto_profil' => 'nullable|image|max:2048',
             'banner_toko' => 'nullable|image|max:2048'
         ]);
 
         if ($request->has('nama_toko')) $shop->nama_toko = $request->nama_toko;
         if ($request->has('deskripsi_toko')) $shop->deskripsi_toko = $request->deskripsi_toko;
+        if ($request->has('alamat_toko')) $shop->alamat_toko = $request->alamat_toko;
+        if ($request->has('latitude')) $shop->latitude = $request->latitude;
+        if ($request->has('longitude')) $shop->longitude = $request->longitude;
 
         if ($request->hasFile('foto_profil')) {
-            $shop->foto_profil = $request->file('foto_profil')->store('shops/profiles', 'public');
+            $manager = new ImageManager(new Driver());
+            $img = $manager->read($request->file('foto_profil'));
+            $img->scaleDown(800, 800);
+            $path = 'shops/profiles/' . uniqid() . '.jpg';
+            Storage::disk('public')->put($path, (string) $img->toJpeg(75));
+            $shop->foto_profil = $path;
         }
         if ($request->hasFile('banner_toko')) {
-            $shop->banner_toko = $request->file('banner_toko')->store('shops/banners', 'public');
+            $manager = new ImageManager(new Driver());
+            $img = $manager->read($request->file('banner_toko'));
+            $img->scaleDown(1920, 1080);
+            $path = 'shops/banners/' . uniqid() . '.jpg';
+            Storage::disk('public')->put($path, (string) $img->toJpeg(75));
+            $shop->banner_toko = $path;
         }
 
         $shop->save();
@@ -142,9 +170,26 @@ class ShopController extends Controller
         $shop = $request->user()->shop;
         if (!$shop) return response()->json(['message' => 'Toko tidak ditemukan'], 404);
 
-        $completedOrders = clone \App\Models\Order::where('shop_id', $shop->id)->where('status', 'completed');
-        $completedOrdersCount = (clone $completedOrders)->count();
-        $totalProfit = $completedOrders->sum('total_amount') - ($completedOrdersCount * 10500);
+        $completedOrderIds = \App\Models\Order::where('shop_id', $shop->id)
+            ->where('status', 'completed')
+            ->pluck('id');
+            
+        $itemsTotal = \App\Models\OrderItem::whereIn('order_id', $completedOrderIds)
+            ->selectRaw('SUM(price * qty) as total')
+            ->value('total') ?? 0;
+            
+        $shopDiscounts = 0;
+        $completedOrdersWithVoucher = \App\Models\Order::whereIn('id', $completedOrderIds)->whereNotNull('voucher_code')->get();
+        foreach ($completedOrdersWithVoucher as $order) {
+            $voucher = \App\Models\Voucher::where('code', $order->voucher_code)->first();
+            if ($voucher && $voucher->shop_id == $shop->id) {
+                $shopDiscounts += $order->discount_amount;
+            }
+        }
+        
+        $totalProfit = $itemsTotal - $shopDiscounts;
+        $completedOrdersCount = $completedOrderIds->count();
+
         $totalWithdrawn = \App\Models\Withdrawal::where('user_id', $request->user()->id)->where('type', 'shop')->where('status', '!=', 'rejected')->sum('amount');
         
         return response()->json([

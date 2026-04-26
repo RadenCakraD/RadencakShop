@@ -61,9 +61,9 @@ export default function ProductCard({ product, onEdit, onDelete, hideActions = f
                     <div className="mt-2 flex items-center justify-between text-[11px] text-rc-muted">
                         <div className="flex items-center gap-1">
                             <i className="fa-solid fa-star text-rc-logo"></i>
-                            <span>{product.rating || '5.0'}</span>
+                            <span>{product.reviews_avg_rating ? parseFloat(product.reviews_avg_rating).toFixed(1) : '0.0'}</span>
                             <span className="px-1">•</span>
-                            <span>{product.terjual || 0} terjual</span>
+                            <span>{product.order_items_sum_qty || 0} terjual</span>
                         </div>
                     </div>
 

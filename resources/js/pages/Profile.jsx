@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 import EditUserSettingsModal from '../components/Modals/EditUserSettingsModal';
+import SwitchAccountModal from '../components/Modals/SwitchAccountModal';
 
 export default function Profile() {
     const navigate = useNavigate();
     const [user, setUser] = useState(null);
+    const [primaryAddress, setPrimaryAddress] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isSwitchModalOpen, setIsSwitchModalOpen] = useState(false);
+
 
     const fetchUser = async () => {
         const token = localStorage.getItem('auth_token');
@@ -16,10 +20,31 @@ export default function Profile() {
             return;
         }
         try {
-            const res = await axios.get('/api/user', {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setUser(res.data);
+            const [userRes, addrRes] = await Promise.all([
+                axios.get('/api/user', {
+                    headers: { Authorization: `Bearer ${token}` }
+                }),
+                axios.get('/api/addresses', {
+                    headers: { Authorization: `Bearer ${token}` }
+                }).catch(() => ({ data: [] }))
+            ]);
+            setUser(userRes.data);
+            const primary = addrRes.data.find(a => a.is_primary) || addrRes.data[0];
+            setPrimaryAddress(primary);
+
+            // Auto-save current account to saved_accounts if not exists
+            const savedAccounts = JSON.parse(localStorage.getItem('saved_accounts') || '[]');
+            const currentAcc = {
+                token: token,
+                username: userRes.data.username,
+                name: userRes.data.name || userRes.data.username,
+                avatar: userRes.data.avatar,
+                email: userRes.data.email
+            };
+            if (!savedAccounts.find(acc => acc.username === currentAcc.username)) {
+                savedAccounts.push(currentAcc);
+                localStorage.setItem('saved_accounts', JSON.stringify(savedAccounts));
+            }
         } catch (err) {
             console.error("Gagal memuat profil", err);
             if (err.response?.status === 401) {
@@ -50,7 +75,21 @@ export default function Profile() {
         navigate('/login');
     };
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center text-rc-logo bg-rc-bg font-bold"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
+    if (loading) return (
+        <div className="bg-rc-bg min-h-screen pb-16 font-sans flex items-center justify-center p-4">
+            <div className="w-full max-w-2xl bg-rc-card p-8 rounded-2xl animate-pulse border-[0.5px] border-rc-main/10">
+                <div className="flex flex-col items-center gap-4 mb-8">
+                    <div className="w-24 h-24 bg-rc-bg rounded-xl border-[0.5px] border-rc-main/10"></div>
+                    <div className="w-32 h-6 bg-rc-bg rounded border-[0.5px] border-rc-main/10"></div>
+                </div>
+                <div className="space-y-4">
+                    <div className="w-full h-12 bg-rc-bg rounded border-[0.5px] border-rc-main/10"></div>
+                    <div className="w-full h-12 bg-rc-bg rounded border-[0.5px] border-rc-main/10"></div>
+                    <div className="w-full h-12 bg-rc-bg rounded border-[0.5px] border-rc-main/10"></div>
+                </div>
+            </div>
+        </div>
+    );
     if (!user) return null;
 
     return (
@@ -139,12 +178,32 @@ export default function Profile() {
 
                         {/* Card: Address Large */}
                         <div className="bg-rc-card border-[0.5px] border-rc-main/20 rounded-xl p-8 hover:border-rc-logo transition-colors relative overflow-hidden">
-                            <h4 className="text-xs font-bold text-rc-muted uppercase mb-6 flex items-center gap-3">
-                                <i className="fa-solid fa-location-dot text-rc-logo"></i> Titik Lokasi Pengiriman
-                            </h4>
-                            <p className="text-lg font-bold text-rc-main leading-relaxed max-w-xl">
-                                {user.alamat || 'Anda belum menetapkan alamat domisili utama untuk pengiriman logistik.'}
-                            </p>
+                            <div className="flex justify-between items-center mb-6">
+                                <h4 className="text-xs font-bold text-rc-muted uppercase flex items-center gap-3">
+                                    <i className="fa-solid fa-location-dot text-rc-logo"></i> Titik Lokasi Pengiriman
+                                </h4>
+                                <Link to="/pengaturan" className="text-[10px] bg-rc-logo/10 text-rc-logo border border-rc-logo/30 px-3 py-1 rounded hover:bg-rc-logo hover:text-rc-bg transition uppercase font-bold">
+                                    Kelola
+                                </Link>
+                            </div>
+                            
+                            {primaryAddress ? (
+                                <div>
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <h5 className="text-lg font-bold text-rc-main uppercase">{primaryAddress.receiver_name}</h5>
+                                        <span className="bg-rc-logo text-rc-bg px-2 py-0.5 rounded text-[10px] font-black uppercase">{primaryAddress.tag}</span>
+                                    </div>
+                                    <p className="text-sm font-bold text-rc-muted mb-2">{primaryAddress.phone_number}</p>
+                                    <p className="text-sm font-medium text-rc-main leading-relaxed max-w-xl">
+                                        {primaryAddress.full_address}
+                                    </p>
+                                    {primaryAddress.note && <p className="text-[10px] text-teal-400 font-bold bg-teal-400/10 px-2 py-1 rounded w-fit italic mt-2">"{primaryAddress.note}"</p>}
+                                </div>
+                            ) : (
+                                <p className="text-sm font-bold text-rc-muted leading-relaxed max-w-xl">
+                                    Anda belum menetapkan alamat domisili utama untuk pengiriman logistik.
+                                </p>
+                            )}
                         </div>
 
                     </div>
@@ -157,7 +216,7 @@ export default function Profile() {
                                 {[
                                     { to: '/keranjang', icon: 'fa-cart-shopping', label: 'Keranjang Belanja' },
                                     { to: '/chat', icon: 'fa-comment-dots', label: 'Pesan Masuk' },
-                                    { to: '/orders', icon: 'fa-box-open', label: 'Riwayat Pesanan' },
+                                    { to: '/informasi', icon: 'fa-receipt', label: 'Riwayat Pesanan' },
                                 ].map((item, idx) => (
                                     <Link key={idx} to={item.to} className="flex items-center justify-between p-4 rounded-lg bg-rc-card border-[1px] border-transparent hover:border-rc-logo transition-colors group">
                                         <div className="flex items-center gap-4">
@@ -170,7 +229,10 @@ export default function Profile() {
                                 ))}
                             </div>
 
-                            <div className="mt-8 pt-6 border-t border-rc-main/20">
+                            <div className="mt-8 pt-6 border-t border-rc-main/20 space-y-3">
+                                <button onClick={() => setIsSwitchModalOpen(true)} className="w-full py-4 rounded bg-rc-logo/10 border-[1px] border-rc-logo/50 text-rc-logo hover:bg-rc-logo hover:text-rc-bg transition-colors text-xs font-bold uppercase flex items-center justify-center gap-2">
+                                    <i className="fa-solid fa-repeat"></i> Beralih Akun
+                                </button>
                                 <button onClick={handleLogout} className="w-full py-4 rounded bg-red-500/10 border-[1px] border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white transition-colors text-xs font-bold uppercase flex items-center justify-center gap-2">
                                     <i className="fa-solid fa-power-off"></i> Terminasi Sesi
                                 </button>
@@ -186,6 +248,12 @@ export default function Profile() {
                 onClose={() => setIsEditModalOpen(false)}
                 userData={user}
                 onSuccess={fetchUser}
+            />
+
+            <SwitchAccountModal
+                isOpen={isSwitchModalOpen}
+                onClose={() => setIsSwitchModalOpen(false)}
+                currentUsername={user.username}
             />
 
         </div>

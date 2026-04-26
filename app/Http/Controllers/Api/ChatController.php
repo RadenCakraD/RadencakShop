@@ -16,9 +16,15 @@ class ChatController extends Controller
         $user = $request->user();
         $shopId = $user->shop ? $user->shop->id : null;
 
-        $query = Chat::with(['user', 'shop', 'messages' => function($q) {
-            $q->latest()->limit(1); // Get latest message for preview
-        }]);
+        $query = Chat::with(['user', 'shop', 'latestMessage'])
+            ->withCount([
+                'messages as unread_as_seller' => function ($query) {
+                    $query->where('is_read', false)->where('sender_type', 'user');
+                },
+                'messages as unread_as_buyer' => function ($query) {
+                    $query->where('is_read', false)->where('sender_type', 'shop');
+                }
+            ]);
 
         if ($shopId) {
             $query->where('user_id', $user->id)->orWhere('shop_id', $shopId);
@@ -26,7 +32,9 @@ class ChatController extends Controller
             $query->where('user_id', $user->id);
         }
 
-        $chats = $query->get()->map(function ($chat) use ($user, $shopId) {
+        $chats = $query->get()->sortByDesc(function($chat) {
+            return $chat->latestMessage ? $chat->latestMessage->created_at : $chat->created_at;
+        })->values()->map(function ($chat) use ($user, $shopId) {
             // Determine the display name and avatar depending on role
             // If user is acting as buyer, the chat name is the Shop name.
             // If user is acting as seller, the chat name is the Buyer name.
@@ -40,9 +48,9 @@ class ChatController extends Controller
                 'target_avatar' => $isSellerInThisChat 
                     ? ($chat->user->avatar ? '/storage/' . $chat->user->avatar : '') 
                     : ($chat->shop->foto_profil ? '/storage/' . $chat->shop->foto_profil : ''),
-                'latest_message' => $chat->messages->first() ? $chat->messages->first()->message : 'Mulai percakapan',
-                'latest_time' => $chat->messages->first() ? $chat->messages->first()->created_at->format('H:i') : '',
-                'unread_count' => 0 // Unread logic can be added later
+                'latest_message' => $chat->latestMessage ? $chat->latestMessage->message : 'Mulai percakapan',
+                'latest_time' => $chat->latestMessage ? $chat->latestMessage->created_at->format('H:i') : '',
+                'unread_count' => $isSellerInThisChat ? $chat->unread_as_seller : $chat->unread_as_buyer
             ];
         });
 
@@ -71,9 +79,16 @@ class ChatController extends Controller
         $shopId = $user->shop ? $user->shop->id : null;
 
         // Check permission
-        if ($chat->user_id !== $user->id && $chat->shop_id !== $shopId) {
+        $isSellerInThisChat = $shopId && $chat->shop_id === $shopId;
+        if ($chat->user_id !== $user->id && !$isSellerInThisChat) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
+
+        // Mark incoming messages as read
+        ChatMessage::where('chat_id', $chat->id)
+            ->where('is_read', false)
+            ->where('sender_type', $isSellerInThisChat ? 'user' : 'shop')
+            ->update(['is_read' => true]);
 
         $messages = ChatMessage::where('chat_id', $chat->id)
             ->orderBy('created_at', 'asc')
@@ -117,9 +132,34 @@ class ChatController extends Controller
             'message' => $request->message
         ]);
 
+        broadcast(new \App\Events\MessageSent($msg, $chat->id))->toOthers();
+
         return response()->json([
             'message' => 'Terkirim',
             'data' => $msg
         ]);
+    }
+
+    public function unreadCount(Request $request)
+    {
+        $user = $request->user();
+        $shopId = $user->shop ? $user->shop->id : null;
+
+        $userUnread = \App\Models\ChatMessage::where('is_read', false)
+            ->where('sender_type', 'shop')
+            ->whereHas('chat', function($q) use ($user) {
+                $q->where('user_id', $user->id);
+            })->count();
+
+        $shopUnread = 0;
+        if ($shopId) {
+            $shopUnread = \App\Models\ChatMessage::where('is_read', false)
+                ->where('sender_type', 'user')
+                ->whereHas('chat', function($q) use ($shopId) {
+                    $q->where('shop_id', $shopId);
+                })->count();
+        }
+
+        return response()->json(['unread_count' => $userUnread + $shopUnread]);
     }
 }

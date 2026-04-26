@@ -134,7 +134,17 @@ export default function ShopDashboard() {
         }
     };
 
-    if (loading) return <div className="p-8 text-center text-rc-muted bg-rc-bg min-h-screen">Memuat dasbor toko...</div>;
+    if (loading) return (
+        <div className="bg-[#0b0c10] min-h-screen flex text-rc-main">
+            <div className="flex-1 p-4 md:p-8 ml-0 md:ml-64">
+                <div className="h-10 bg-rc-card w-1/4 rounded animate-pulse mb-8"></div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    {[1,2,3].map(i => <div key={i} className="h-32 bg-rc-card rounded-xl animate-pulse border-[0.5px] border-rc-main/10"></div>)}
+                </div>
+                <div className="h-64 bg-rc-card rounded-xl animate-pulse border-[0.5px] border-rc-main/10"></div>
+            </div>
+        </div>
+    );
     if (error) return <div className="p-8 text-center text-red-500 bg-rc-bg min-h-screen">{error}</div>;
     if (!shopData) return null;
 
@@ -199,7 +209,7 @@ export default function ShopDashboard() {
             <div className="max-w-7xl mx-auto px-4 md:px-8 mt-20">
                 {/* Tabs - Clean Elegant Underlines */}
                 <div className="flex border-b-[0.5px] border-rc-main/20 mb-8 gap-8 overflow-x-auto no-scrollbar">
-                    {['produk', 'pesanan', 'promosi', 'laporan'].map(tab => (
+                    {['produk', 'pesanan', 'promosi', 'laporan', ...(shopData.shop_tier === 'raden' ? ['karyawan', 'live'] : [])].map(tab => (
                         <button 
                             key={tab}
                             onClick={() => setActiveTab(tab)}
@@ -209,6 +219,8 @@ export default function ShopDashboard() {
                             {tab === 'pesanan' && `MANAJEMEN ORDER`}
                             {tab === 'promosi' && `VOUCHER TOKO`}
                             {tab === 'laporan' && `INSIGHTS`}
+                            {tab === 'karyawan' && `KARYAWAN TOKO`}
+                            {tab === 'live' && `LIVE STREAMING`}
                             {activeTab === tab && <div className="absolute bottom-0 left-0 w-full h-[2px] bg-rc-main"></div>}
                         </button>
                     ))}
@@ -416,6 +428,43 @@ export default function ShopDashboard() {
                                     {isWithdrawing ? 'Memproses...' : 'Ajukan Penarikan'}
                                 </button>
                             </form>
+                        </div>
+                    </div>
+                )}
+
+                {/* Tab: Karyawan */}
+                {activeTab === 'karyawan' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="bg-gradient-to-br from-rc-logo/10 to-transparent p-10 rounded-xl border-[0.5px] border-rc-logo/30">
+                            <h3 className="text-sm font-black uppercase text-rc-logo mb-2 tracking-widest"><i className="fa-solid fa-users-gear mr-2"></i> Manajemen Karyawan Toko</h3>
+                            <p className="text-xs text-rc-muted mb-6">Kelola staf admin toko, SPG/SPB untuk membantu memproses pesanan dan live streaming. Fitur eksklusif Toko Raden.</p>
+                            <button onClick={() => navigate('/daftar-mitra')} className="bg-rc-logo text-rc-bg font-bold uppercase text-xs px-6 py-3 rounded shadow hover:bg-yellow-500 transition">
+                                <i className="fa-solid fa-user-plus mr-2"></i> Rekrut Karyawan Baru
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <div className="bg-rc-card p-6 rounded-xl border-[0.5px] border-rc-main/10 text-center flex flex-col items-center">
+                                <div className="w-16 h-16 rounded-full bg-rc-bg border-2 border-rc-logo/50 flex items-center justify-center text-rc-logo text-2xl mb-4">
+                                    <i className="fa-solid fa-headset"></i>
+                                </div>
+                                <h4 className="text-xs font-black uppercase text-rc-main mb-1">Dina Amelia</h4>
+                                <p className="text-[10px] text-rc-muted uppercase mb-4">Customer Service Toko</p>
+                                <span className="bg-green-500/20 text-green-500 px-3 py-1 text-[10px] font-bold rounded uppercase">Aktif</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Tab: Live Streaming */}
+                {activeTab === 'live' && (
+                    <div className="space-y-6 animate-fade-in">
+                        <div className="bg-gradient-to-r from-red-500/10 to-pink-500/10 p-10 rounded-xl border-[0.5px] border-red-500/30 text-center">
+                            <i className="fa-solid fa-satellite-dish text-5xl text-red-500 mb-4 block animate-pulse"></i>
+                            <h3 className="text-xl font-black uppercase text-rc-main mb-2 tracking-widest">Raden Live Studio</h3>
+                            <p className="text-xs text-rc-muted mb-6 max-w-lg mx-auto">Sapa pelanggan Anda secara langsung, pasang flash sale dadakan, dan tingkatkan penjualan toko Anda dengan fitur Live Streaming.</p>
+                            <button className="bg-red-600 text-white font-bold uppercase text-xs px-10 py-4 rounded-xl shadow-[0_0_15px_rgba(220,38,38,0.5)] hover:bg-red-500 transition">
+                                <i className="fa-solid fa-video mr-2"></i> Mulai Live Streaming Sekarang
+                            </button>
                         </div>
                     </div>
                 )}

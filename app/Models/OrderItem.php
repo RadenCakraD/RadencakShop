@@ -11,4 +11,10 @@ class OrderItem extends Model
     public function order() { return $this->belongsTo(Order::class); }
     public function product() { return $this->belongsTo(Product::class); }
     public function variant() { return $this->belongsTo(ProductVariant::class); }
+
+    public function review()
+    {
+        return $this->hasOne(Review::class, 'product_id', 'product_id')
+            ->whereColumn('order_id', 'order_id');
+    }
 }

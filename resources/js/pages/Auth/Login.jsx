@@ -27,6 +27,22 @@ export default function Login() {
             if (response.data.token || response.data.access_token) {
                 const tokenString = response.data.token || response.data.access_token;
                 localStorage.setItem('auth_token', tokenString);
+
+                // Save to multi-account list
+                const userData = response.data.user || { username: credentials.username };
+                const savedAccounts = JSON.parse(localStorage.getItem('saved_accounts') || '[]');
+                const newAccount = {
+                    token: tokenString,
+                    username: userData.username,
+                    name: userData.name || userData.username,
+                    avatar: userData.avatar,
+                    email: userData.email || credentials.email
+                };
+
+                // Filter out existing same username and add new one
+                const filteredAccounts = savedAccounts.filter(acc => acc.username !== newAccount.username);
+                filteredAccounts.push(newAccount);
+                localStorage.setItem('saved_accounts', JSON.stringify(filteredAccounts));
                 
                 const from = location.state?.from?.pathname || "/dashboard";
                 setTimeout(() => navigate(from, { replace: true }), 100);

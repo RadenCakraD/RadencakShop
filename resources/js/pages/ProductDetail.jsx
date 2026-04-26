@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import useSWR from 'swr';
 import ProductCard from '../components/ProductCard';
+
+const fetcher = url => axios.get(url).then(res => res.data);
 
 export default function ProductDetail() {
     const { slug } = useParams();
@@ -124,7 +127,30 @@ export default function ProductDetail() {
         }
     };
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center text-rc-logo bg-rc-bg font-bold mb-[200px]"><i className="fa-solid fa-spinner fa-spin text-4xl"></i></div>;
+    const { data: cartData } = useSWR(localStorage.getItem('auth_token') ? '/api/cart' : null, fetcher);
+    const { data: chatData } = useSWR(localStorage.getItem('auth_token') ? '/api/chat/unread-count' : null, fetcher);
+
+    const cartCount = cartData?.data?.length || 0;
+    const chatUnreadCount = chatData?.unread_count || 0;
+
+    if (loading) return (
+        <div className="bg-rc-bg min-h-screen pb-16 pt-8 font-sans">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="bg-rc-card rounded-xl border-[0.5px] border-rc-main/10 p-6 flex flex-col lg:flex-row gap-8 lg:gap-10">
+                    <div className="lg:w-2/5 flex-shrink-0 animate-pulse">
+                        <div className="w-full aspect-square bg-rc-bg border-[0.5px] border-rc-main/10 rounded-xl mb-4"></div>
+                        <div className="flex gap-2"><div className="w-16 h-16 bg-rc-bg rounded"></div><div className="w-16 h-16 bg-rc-bg rounded"></div></div>
+                    </div>
+                    <div className="lg:w-3/5 flex flex-col gap-4 animate-pulse w-full mt-4 lg:mt-0">
+                        <div className="h-8 bg-rc-bg rounded w-3/4"></div>
+                        <div className="h-4 bg-rc-bg rounded w-1/4"></div>
+                        <div className="h-10 bg-rc-bg rounded w-1/3 mt-4"></div>
+                        <div className="h-32 bg-rc-bg rounded w-full mt-6"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
     if (!product) return <div className="text-center py-20 bg-rc-bg min-h-screen text-red-500 font-bold text-xl">Produk Tidak Ditemukan (404)</div>;
 
     // Kumpulkan Semua Gambar (Utama + Varian)
@@ -146,9 +172,16 @@ export default function ProductDetail() {
                     <button onClick={() => navigate(-1)} className="text-rc-muted hover:text-rc-main transition flex items-center gap-2 text-xs font-bold uppercase">
                         <i className="fa-solid fa-chevron-left"></i> KEMBALI
                     </button>
-                    <Link to="/keranjang" className="text-rc-muted hover:text-rc-main transition p-2 relative">
-                        <i className="fa-solid fa-cart-shopping text-xl"></i>
-                    </Link>
+                    <div className="flex items-center gap-4">
+                        <Link to="/keranjang" className="text-rc-muted hover:text-rc-main transition p-2 relative">
+                            <i className="fa-solid fa-cart-shopping text-xl"></i>
+                            {cartCount > 0 && <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-rc-logo text-rc-bg text-[8px] font-bold flex items-center justify-center rounded-full border-[0.5px] border-rc-bg">{cartCount}</span>}
+                        </Link>
+                        <Link to="/chat" className="text-rc-muted hover:text-rc-main transition p-2 relative">
+                            <i className="fa-solid fa-comment-dots text-xl"></i>
+                            {chatUnreadCount > 0 && <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-blue-500 text-white text-[8px] font-bold flex items-center justify-center rounded-full border-[0.5px] border-rc-bg animate-pulse">{chatUnreadCount}</span>}
+                        </Link>
+                    </div>
                 </div>
             </div>
 
@@ -172,7 +205,13 @@ export default function ProductDetail() {
                                     {allImages.map((img, idx) => (
                                         <button
                                             key={idx}
-                                            onClick={() => setActiveImageIndex(idx)}
+                                            onClick={() => {
+                                                setActiveImageIndex(idx);
+                                                if (img.is_variant && product.variants) {
+                                                    const matchedVar = product.variants.find(v => v.id === img.var_id);
+                                                    if (matchedVar && matchedVar.stok > 0) setActiveVariant(matchedVar);
+                                                }
+                                            }}
                                             className={`flex-shrink-0 w-16 h-16 rounded-md overflow-hidden border-[2px] transition-colors ${activeImageIndex === idx ? 'border-rc-logo' : 'border-transparent opacity-60 hover:opacity-100 hover:border-rc-main/50'}`}
                                         >
                                             <img src={img.image_url.startsWith('http') ? img.image_url : `/storage/${img.image_url}`} className="w-full h-full object-cover" />
@@ -194,9 +233,15 @@ export default function ProductDetail() {
                         </h1>
 
                         <div className="flex items-center gap-4 text-[10px] text-rc-muted mb-6 pb-6 border-b-[0.5px] border-rc-main/20 uppercase font-bold">
-                            <span className="flex items-center gap-1 text-rc-logo"><i className="fa-solid fa-star"></i> 5.0</span>
+                            <span className="flex items-center gap-1 text-rc-logo">
+                                <i className="fa-solid fa-star"></i> 
+                                {product.reviews?.length > 0 
+                                    ? (product.reviews.reduce((acc, r) => acc + r.rating, 0) / product.reviews.length).toFixed(1) 
+                                    : '0.0'} 
+                                <span className="text-rc-muted/60 ml-1">({product.reviews?.length || 0} Ulasan)</span>
+                            </span>
                             <span className="w-[4px] h-[4px] bg-rc-main/20 rounded-full"></span>
-                            <span>{Math.floor(Math.random() * 100) + 10} TERJUAL</span>
+                            <span>{product.order_items_sum_qty || 0} TERJUAL</span>
                             <span className="w-[4px] h-[4px] bg-rc-main/20 rounded-full"></span>
                             <span className="flex items-center gap-1"><i className="fa-solid fa-tag text-rc-muted/50"></i> {product.kategori}</span>
                         </div>
@@ -307,7 +352,7 @@ export default function ProductDetail() {
                                     if (!localStorage.getItem('auth_token')) { alert('Silakan login terlebih dahulu'); navigate('/login'); return; }
                                     try {
                                         await axios.post('/api/chat', { shop_id: product.shop.id });
-                                        navigate('/chat');
+                                        navigate('/chat', { state: { discussedProduct: product } });
                                     } catch (e) { alert('Gagal membuka chat'); }
                                 }}
                                 className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-md transition-colors flex items-center gap-2"
@@ -329,6 +374,54 @@ export default function ProductDetail() {
                     <div className="prose prose-invert max-w-none text-rc-muted whitespace-pre-wrap leading-relaxed text-sm font-medium bg-rc-bg p-6 rounded-md border-[0.5px] border-rc-main/10">
                         {product.deskripsi}
                     </div>
+                </div>
+
+                {/* Ulasan Pembeli */}
+                <div className="bg-rc-card rounded-xl border-[0.5px] border-rc-main/20 p-6 md:p-8 mt-8">
+                    <h2 className="text-sm font-bold uppercase text-rc-main mb-6 border-b-[0.5px] border-rc-main/20 pb-4 flex items-center gap-2">
+                        <i className="fa-solid fa-comments text-rc-muted"></i> Ulasan Pembeli ({product.reviews?.length || 0})
+                    </h2>
+                    
+                    {product.reviews && product.reviews.length > 0 ? (
+                        <div className="space-y-6">
+                            {product.reviews.map(review => (
+                                <div key={review.id} className="border-b-[0.5px] border-rc-main/10 pb-6 last:border-0 last:pb-0">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-full bg-rc-bg border-[0.5px] border-rc-main/20 flex items-center justify-center text-rc-muted font-bold text-lg uppercase overflow-hidden">
+                                                {review.user?.foto_profil ? <img src={`/storage/${review.user.foto_profil}`} className="w-full h-full object-cover"/> : review.user?.name?.charAt(0) || 'U'}
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-xs text-rc-main">{review.user?.name || review.user?.username || 'Pengguna'}</div>
+                                                <div className="flex text-rc-logo text-[10px] mt-0.5">
+                                                    {[...Array(5)].map((_, i) => (
+                                                        <i key={i} className={i < review.rating ? "fa-solid fa-star" : "fa-regular fa-star text-rc-muted/30"}></i>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="text-[10px] text-rc-muted font-bold">
+                                            {new Date(review.created_at).toLocaleDateString('id-ID')}
+                                        </div>
+                                    </div>
+                                    <div className="text-sm text-rc-muted mt-3 bg-rc-bg p-4 rounded-md border-[0.5px] border-rc-main/5 font-medium">
+                                        {review.comment || <em className="opacity-50">Tidak ada komentar</em>}
+                                    </div>
+                                    {review.image && (
+                                        <div className="mt-3">
+                                            <img src={`/storage/${review.image}`} className="w-24 h-24 object-cover rounded-md border-[0.5px] border-rc-main/20 hover:scale-150 transform origin-left transition-transform duration-300 z-10 relative cursor-pointer" alt="Bukti review" />
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center py-10 bg-rc-bg rounded-md border-[0.5px] border-rc-main/10 text-rc-muted">
+                            <div className="w-16 h-16 rounded-full bg-rc-card flex items-center justify-center text-2xl mb-4"><i className="fa-regular fa-comment-slash"></i></div>
+                            <h3 className="font-bold uppercase tracking-widest text-xs mb-1">Belum Ada Ulasan</h3>
+                            <p className="text-[10px] text-center max-w-xs opacity-70">Jadilah yang pertama untuk membeli dan memberikan ulasan pada produk eksklusif ini.</p>
+                        </div>
+                    )}
                 </div>
 
                 {similarProducts.length > 0 && (
