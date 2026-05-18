@@ -424,12 +424,12 @@ export default function Settings() {
                     </p>
                 </div>
 
-                {/* Grid Layout: Sidebar Navigation + Content */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Flex Layout: Sidebar Navigation + Content */}
+                <div className="flex flex-row items-start gap-4 md:gap-8">
                     
                     {/* Left Column: Responsive Premium Sidebar Navigation */}
-                    <div className="lg:col-span-3">
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-1 gap-2.5">
+                    <div className="w-[72px] md:w-[80px] lg:w-[260px] shrink-0 sticky top-28">
+                        <div className="flex flex-col gap-3">
                             {[
                                 { id: 'alamat_saya', label: 'Alamat Pengiriman', icon: 'fa-map-location-dot' },
                                 { id: 'informasi_akun', label: 'Informasi Akun', icon: 'fa-user-gear' },
@@ -440,23 +440,24 @@ export default function Settings() {
                             ].map(tab => (
                                 <motion.button 
                                     key={tab.id}
-                                    whileTap={{ scale: 0.97 }}
+                                    whileTap={{ scale: 0.95 }}
                                     onClick={() => setActiveTab(tab.id)}
-                                    className={`px-5 py-4 rounded-2xl flex items-center gap-3.5 text-xs font-black uppercase tracking-wider transition-all text-left shadow-md border ${
+                                    className={`w-full rounded-2xl flex items-center justify-center lg:justify-start gap-3.5 text-xs font-black uppercase tracking-wider transition-all shadow-md border ${
                                         activeTab === tab.id 
-                                            ? 'bg-rc-logo text-rc-bg border-rc-logo' 
+                                            ? 'bg-rc-logo text-rc-bg border-rc-logo shadow-lg shadow-rc-logo/10' 
                                             : 'bg-rc-card/60 backdrop-blur-md border-rc-main/10 text-rc-muted'
-                                    }`}
+                                    } p-4.5 lg:px-5 lg:py-4`}
+                                    title={tab.label}
                                 >
-                                    <i className={`fa-solid ${tab.icon} text-sm shrink-0 ${activeTab === tab.id ? 'text-rc-bg' : 'text-rc-logo'}`}></i>
-                                    <span className="truncate">{tab.label}</span>
+                                    <i className={`fa-solid ${tab.icon} text-lg lg:text-sm shrink-0 ${activeTab === tab.id ? 'text-rc-bg' : 'text-rc-logo'}`}></i>
+                                    <span className="hidden lg:block truncate">{tab.label}</span>
                                 </motion.button>
                             ))}
                         </div>
                     </div>
 
                     {/* Right Column: Tab Content */}
-                    <div className="lg:col-span-9">
+                    <div className="flex-1 min-w-0">
                         <div className="w-full">
                             
                             {activeTab === 'informasi_akun' && user && (
