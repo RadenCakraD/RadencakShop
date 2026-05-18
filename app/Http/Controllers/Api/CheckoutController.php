@@ -37,7 +37,15 @@ class CheckoutController extends Controller
         
         $shippingFee = $region ? ($request->shipping_method === 'Santai' ? $region->shipping_fee_santai : $region->shipping_fee_cepat) : ($request->shipping_method === 'Santai' ? (int) env('DEFAULT_SHIPPING_SANTAI', 10000) : (int) env('DEFAULT_SHIPPING_CEPAT', 15000));
         $serviceFee = $region ? $region->service_fee : (int) env('DEFAULT_SERVICE_FEE', 500);
-        $taxRate = $region ? $region->tax_rate : 0;
+        $crossIslandFee = $region ? $region->cross_island_fee : 0;
+
+        $courierFee = $region ? ($request->shipping_method === 'Santai' ? $region->courier_fee_regular : $region->courier_fee_fast) : 0;
+        $logisticsFee = $region ? ($request->shipping_method === 'Santai' ? $region->logistics_fee_regular : $region->logistics_fee_fast) : 0;
+
+        $pickupFeeEarned = $courierFee / 2;
+        $deliveryFeeEarned = $courierFee / 2;
+        $logisticsPickupFeeEarned = $logisticsFee / 2;
+        $logisticsDeliveryFeeEarned = $logisticsFee / 2;
 
         // Logic for Direct Buy vs Cart Checkout
         if ($request->filled('cart_ids')) {
@@ -117,8 +125,42 @@ class CheckoutController extends Controller
                     $totalAmount += $price * $item->qty;
                 }
 
-                $taxAmount = ($totalAmount * $taxRate) / 100;
-                $totalAmount += $taxAmount;
+                $firstProduct = $cartItems->first()->product;
+                $productCountry = $firstProduct->country;
+                $buyerCountry = $region->country;
+
+                $shopProvince = $firstProduct->shop->province;
+                $buyerProvince = $address->province;
+
+                $isSameIsland = true;
+                if ($region && $shopProvince !== $buyerProvince) {
+                    $islands = is_string($region->islands) ? json_decode($region->islands, true) : ($region->islands ?? []);
+                    $shopIsland = null;
+                    $buyerIsland = null;
+                    
+                    foreach ($islands as $island) {
+                        $provs = collect($island['provinces'] ?? []);
+                        if ($provs->contains('name', $shopProvince)) $shopIsland = $island['name'];
+                        if ($provs->contains('name', $buyerProvince)) $buyerIsland = $island['name'];
+                    }
+
+                    if ($shopIsland !== $buyerIsland) {
+                        $isSameIsland = false;
+                    }
+                }
+
+                $finalTaxAmount = $isSameIsland ? 0 : $crossIslandFee;
+
+                // International Trade Logic
+                if (strtolower($productCountry) !== strtolower($buyerCountry)) {
+                    $exportTaxRate = \App\Models\Region::where('country', $productCountry)->max('export_tax_rate') ?? 0;
+                    $importTaxRate = $region->import_tax_rate;
+
+                    $finalTaxAmount += ($totalAmount * $exportTaxRate) / 100;
+                    $finalTaxAmount += ($totalAmount * $importTaxRate) / 100;
+                }
+
+                $totalAmount += $finalTaxAmount;
                 $totalAmount += $serviceFee;
                 $totalAmount += $shippingFee;
 
@@ -142,12 +184,25 @@ class CheckoutController extends Controller
                     }
                 }
 
+                $finalAmount = max(0, $totalAmount - $appliedDiscount);
+                
+                // Hitung Admin Fee Platform (Misal 2.5% dari harga barang sebelum ongkir/pajak? 
+                // Biasanya dari total transaksi atau total barang. Kita ambil dari totalAmount (termasuk pajak & ongkir) atau total barang saja? 
+                // Kita ambil dari total barang + pajak (tanpa ongkir) untuk keadilan toko.
+                $baseForFee = $totalAmount - $shippingFee - $serviceFee;
+                $feePercentage = (float) env('ADMIN_FEE_PERCENTAGE', 2.5);
+                $adminFeeAmount = ($baseForFee * $feePercentage) / 100;
+
+                $shop = $cartItems->first()->product->shop;
+                
                 $order = Order::create([
                     'user_id' => $user->id,
                     'shop_id' => $shopId,
                     'order_number' => 'ORD-' . strtoupper(Str::random(10)),
                     'status' => 'processing',
-                    'total_amount' => max(0, $totalAmount - $appliedDiscount),
+                    'total_amount' => $finalAmount,
+                    'admin_fee_percentage' => $feePercentage,
+                    'admin_fee_amount' => $adminFeeAmount,
                     'address_info' => $request->address_info ?? 'Alamat Default User',
                     'shipping_latitude' => $request->shipping_latitude,
                     'shipping_longitude' => $request->shipping_longitude,
@@ -155,6 +210,17 @@ class CheckoutController extends Controller
                     'shipping_method' => $request->shipping_method ?? 'Reguler',
                     'voucher_code' => $appliedVoucherCode,
                     'discount_amount' => $appliedDiscount,
+                    'region_id' => $shop->region_id,
+                    'origin_province' => $shop->province,
+                    'origin_regency' => $shop->regency,
+                    'origin_district' => $shop->district,
+                    'destination_province' => $address->province,
+                    'destination_regency' => $address->regency,
+                    'destination_district' => $address->district,
+                    'pickup_fee_earned' => $pickupFeeEarned,
+                    'delivery_fee_earned' => $deliveryFeeEarned,
+                    'logistics_pickup_fee_earned' => $logisticsPickupFeeEarned,
+                    'logistics_delivery_fee_earned' => $logisticsDeliveryFeeEarned,
                 ]);
 
                 $grandTotalAmount += max(0, $totalAmount - $appliedDiscount);
@@ -272,10 +338,11 @@ class CheckoutController extends Controller
         $randomName = $firstNames[$lastDigit] . ' ' . $lastNames[rand(0, 9)];
 
         return response()->json([
-            'message' => 'Rekening Terverifikasi',
+            'message' => 'Rekening Terverifikasi (Sandbox Simulation)',
             'account_name' => $randomName,
             'provider' => $request->provider,
-            'account_number' => $request->account_number
+            'account_number' => $request->account_number,
+            'note' => 'Ini adalah data simulasi karena API perbankan asli belum diintegrasikan.'
         ]);
     }
 }

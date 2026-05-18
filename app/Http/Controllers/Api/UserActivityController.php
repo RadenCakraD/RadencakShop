@@ -110,6 +110,25 @@ class UserActivityController extends Controller
             $reviewData
         );
 
+        // Update Courier Performance Rating if provided
+        if ($request->filled('courier_rating') && $order->delivery_courier_id) {
+            $courier = \App\Models\User::find($order->delivery_courier_id);
+            if ($courier) {
+                // Get all reviews for orders delivered by this courier
+                $allCourierRatings = Review::whereHas('order', function($q) use ($courier) {
+                    $q->where('delivery_courier_id', $courier->id);
+                })->whereNotNull('courier_rating')->pluck('courier_rating');
+
+                $count = $allCourierRatings->count();
+                $avg = $allCourierRatings->avg();
+
+                $courier->update([
+                    'rating' => $avg ?? 5.0,
+                    'rating_count' => $count
+                ]);
+            }
+        }
+
         return response()->json(['message' => 'Penilaian berhasil disimpan!', 'review' => $review]);
     }
 
@@ -138,6 +157,7 @@ class UserActivityController extends Controller
 
         \DB::beginTransaction();
         try {
+            $restoredVouchers = [];
             foreach ($relatedOrders as $ro) {
                 // 1. Restock Products
                 foreach ($ro->items as $item) {
@@ -154,13 +174,12 @@ class UserActivityController extends Controller
                     }
                 }
 
-                // 2. Restore Voucher if any
-                if ($ro->voucher_code) {
-                    // Cek agar restore voucher tidak redundan jika kode voucher sama
-                    // (Asumsikan voucher di-generate per-toko atau global tapi kuota telah dikurangi)
+                // 2. Restore Voucher if any (Ensure only once per voucher code in the session)
+                if ($ro->voucher_code && !in_array($ro->voucher_code, $restoredVouchers)) {
                     $voucher = \App\Models\Voucher::where('code', $ro->voucher_code)->first();
                     if ($voucher) {
                         $voucher->increment('kuota', 1);
+                        $restoredVouchers[] = $ro->voucher_code;
                     }
                 }
 

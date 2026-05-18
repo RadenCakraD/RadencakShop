@@ -19,12 +19,15 @@
         "vite": "^6.4.2"
     },
     "dependencies": {
+        "framer-motion": "^12.38.0",
         "leaflet": "^1.9.4",
+        "lucide-react": "^1.11.0",
         "react": "^19.2.5",
         "react-dom": "^19.2.5",
         "react-hot-toast": "^2.6.0",
         "react-leaflet": "^5.0.0",
         "react-router-dom": "^7.14.0",
+        "recharts": "^3.8.1",
         "swr": "^2.4.1"
     }
 }

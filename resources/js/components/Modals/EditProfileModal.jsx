@@ -95,17 +95,27 @@ export default function EditProfileModal({ isOpen, onClose, shopData, onSuccess 
         if (!mapSearchQuery) return;
         setIsSearchingMap(true);
         try {
-            const res = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearchQuery)}`);
-            if (res.data && res.data.length > 0) {
-                const loc = res.data[0];
-                const newPos = { lat: parseFloat(loc.lat), lng: parseFloat(loc.lon) };
+            const res = await axios.get(`https://photon.komoot.io/api/?q=${encodeURIComponent(mapSearchQuery)}&limit=1`);
+            if (res.data && res.data.features && res.data.features.length > 0) {
+                const loc = res.data.features[0].geometry.coordinates;
+                const newPos = { lat: parseFloat(loc[1]), lng: parseFloat(loc[0]) };
                 setMapPosition(newPos);
                 handleReverseGeocode(newPos.lat, newPos.lng);
             } else {
-                alert('Lokasi tidak ditemukan');
+                // Fallback to nominatim
+                const fallbackRes = await axios.get(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(mapSearchQuery)}`);
+                if (fallbackRes.data && fallbackRes.data.length > 0) {
+                    const loc = fallbackRes.data[0];
+                    const newPos = { lat: parseFloat(loc.lat), lng: parseFloat(loc.lon) };
+                    setMapPosition(newPos);
+                    handleReverseGeocode(newPos.lat, newPos.lng);
+                } else {
+                    alert('Lokasi tidak ditemukan. Coba ketik nama jalan utama atau kota.');
+                }
             }
         } catch (e) {
             console.error("Gagal mencari lokasi", e);
+            alert('Gagal mencari lokasi, pastikan Anda terhubung ke internet.');
         } finally {
             setIsSearchingMap(false);
         }
@@ -114,8 +124,21 @@ export default function EditProfileModal({ isOpen, onClose, shopData, onSuccess 
     const handleReverseGeocode = async (lat, lng) => {
         try {
             const res = await axios.get(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-            if (res.data && res.data.display_name) {
-                setFormData(prev => ({ ...prev, alamat_toko: res.data.display_name }));
+            if (res.data) {
+                const addr = res.data.address;
+                let formatted = '';
+                if (addr) {
+                    const parts = [];
+                    if (addr.road) parts.push(addr.road);
+                    if (addr.neighbourhood) parts.push(addr.neighbourhood);
+                    if (addr.village) parts.push(addr.village);
+                    if (addr.suburb) parts.push(addr.suburb);
+                    if (addr.city_district) parts.push(addr.city_district);
+                    if (addr.city || addr.town || addr.county) parts.push(addr.city || addr.town || addr.county);
+                    formatted = parts.filter(Boolean).join(', ');
+                }
+                const finalStr = formatted || res.data.display_name || '';
+                setFormData(prev => ({ ...prev, alamat_toko: finalStr }));
             }
         } catch (e) {
             console.error("Gagal menarik nama alamat dari map", e);

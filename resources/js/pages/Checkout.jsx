@@ -55,33 +55,113 @@ export default function Checkout() {
             setUser(userRes.data);
             setAddresses(addressRes.data);
             
+            let selectedAddr = null;
             if (addressRes.data.length > 0) {
                 const primary = addressRes.data.find(a => a.is_primary);
-                setSelectedAddress(primary || addressRes.data[0]);
+                selectedAddr = primary || addressRes.data[0];
+                setSelectedAddress(selectedAddr);
             }
 
+            let items = [];
             if (buyNowItemStr) {
                 // Handle Buy Now (Direct)
                 const buyNowData = JSON.parse(buyNowItemStr);
-                setCheckoutItems([{
+                items = [{
                     id: 'direct', // special id for direct buy
                     product_id: buyNowData.product_id,
                     variant_id: buyNowData.variant_id,
                     qty: buyNowData.qty,
                     product: buyNowData.product,
                     variant: buyNowData.variant
-                }]);
+                }];
+                setCheckoutItems(items);
             } else {
                 // Handle Cart Checkout
                 const selectedIds = JSON.parse(selectedIdsStr);
                 const cartRes = await axios.get('/api/cart');
-                const filteredCarts = cartRes.data.filter(c => selectedIds.includes(c.id.toString()));
-                if (filteredCarts.length === 0) {
+                items = cartRes.data.filter(c => selectedIds.includes(c.id.toString()));
+                if (items.length === 0) {
                     toast.error('Barang di keranjang tidak valid atau sudah dibayar.');
                     navigate('/keranjang');
                     return;
                 }
-                setCheckoutItems(filteredCarts);
+                setCheckoutItems(items);
+            }
+
+            // Jika dipicu secara otomatis oleh Raden AI untuk pembayaran kilat (One-Click Instant Payment Gateway!)
+            const autoCheckout = localStorage.getItem('auto_checkout');
+            if (autoCheckout === 'true') {
+                localStorage.removeItem('auto_checkout'); // Bersihkan flag
+                
+                if (!selectedAddr) {
+                    toast.error("Harap tambahkan Alamat Pengiriman di Pusat Pengaturan terlebih dahulu untuk melakukan pembayaran kilat!");
+                    setLoading(false);
+                    return;
+                }
+
+                const loadingToast = toast.loading("Meluncurkan pembayaran kilat resmi Radencak Shop...");
+
+                const hierarchy = `${selectedAddr.district ? selectedAddr.district + ', ' : ''}${selectedAddr.regency ? selectedAddr.regency + ', ' : ''}${selectedAddr.province || ''}`;
+                const addressStr = `[${selectedAddr.tag.toUpperCase()}] ${selectedAddr.receiver_name} | ${selectedAddr.phone_number} | ${selectedAddr.full_address} | ${hierarchy} (Patokan: ${selectedAddr.note || '-'})`;
+
+                const isDirectBuy = items.length === 1 && items[0].id === 'direct';
+
+                const payload = {
+                    address_id: selectedAddr.id,
+                    address_info: addressStr,
+                    payment_method: 'Transfer Bank (Kilat)', // Memicu Midtrans secara otomatis karena bukan 'Cash / COD'
+                    shipping_method: 'Santai',
+                    shipping_latitude: selectedAddr.latitude,
+                    shipping_longitude: selectedAddr.longitude
+                };
+
+                if (isDirectBuy) {
+                    payload.product_id = items[0].product_id;
+                    payload.variant_id = items[0].variant_id;
+                    payload.qty = items[0].qty;
+                } else {
+                    payload.cart_ids = items.map(item => item.id);
+                }
+
+                try {
+                    const res = await axios.post('/api/checkout', payload);
+                    toast.dismiss(loadingToast);
+
+                    if (res.data.snap_token) {
+                        // Langsung panggil Midtrans Snap Pay secara otomatis!
+                        window.snap.pay(res.data.snap_token, {
+                            onSuccess: async function (result) {
+                                toast.success("Pembayaran berhasil! Silahkan tunggu validasi sistem.");
+                                localStorage.removeItem('checkout_items');
+                                localStorage.removeItem('buy_now_item');
+                                navigate('/informasi?tab=pending');
+                            },
+                            onPending: function (result) {
+                                toast.loading("Menunggu pembayaran Anda!");
+                                localStorage.removeItem('checkout_items');
+                                localStorage.removeItem('buy_now_item');
+                                navigate('/informasi?tab=pending');
+                            },
+                            onError: function (result) {
+                                toast.error("Pembayaran gagal!");
+                            },
+                            onClose: function () {
+                                toast.error('Gagal: Anda menutup popup tanpa menyelesaikan pembayaran');
+                                localStorage.removeItem('checkout_items');
+                                localStorage.removeItem('buy_now_item');
+                                navigate('/informasi?tab=pending');
+                            }
+                        });
+                    } else {
+                        toast.success('Pesanan Berhasil Dibuat Secara COD.');
+                        localStorage.removeItem('checkout_items');
+                        localStorage.removeItem('buy_now_item');
+                        navigate('/informasi?tab=processing');
+                    }
+                } catch (err) {
+                    toast.dismiss(loadingToast);
+                    toast.error(err.response?.data?.message || 'Gagal membuat pesanan otomatis');
+                }
             }
 
         } catch (err) {
@@ -127,7 +207,8 @@ export default function Checkout() {
             return;
         }
 
-        const addressStr = `[${selectedAddress.tag.toUpperCase()}] ${selectedAddress.receiver_name} | ${selectedAddress.phone_number} | ${selectedAddress.full_address} (Patokan: ${selectedAddress.note || '-'})`;
+        const hierarchy = `${selectedAddress.district ? selectedAddress.district + ', ' : ''}${selectedAddress.regency ? selectedAddress.regency + ', ' : ''}${selectedAddress.province || ''}`;
+        const addressStr = `[${selectedAddress.tag.toUpperCase()}] ${selectedAddress.receiver_name} | ${selectedAddress.phone_number} | ${selectedAddress.full_address} | ${hierarchy} (Patokan: ${selectedAddress.note || '-'})`;
 
         const isDirectBuy = checkoutItems.length === 1 && checkoutItems[0].id === 'direct';
 
@@ -291,6 +372,11 @@ export default function Checkout() {
                                     <span className="bg-rc-logo text-rc-bg text-[9px] px-2 py-0.5 rounded shadow-sm uppercase font-black">{selectedAddress.tag}</span>
                                 </div>
                                 <div className="mb-1 font-bold tracking-wider">{selectedAddress.phone_number}</div>
+                                <div className="text-[10px] text-rc-muted/80 uppercase font-black tracking-tighter flex flex-wrap gap-x-2 items-center mb-2">
+                                    {selectedAddress.district && <span className="bg-rc-main/5 px-2 py-0.5 rounded border border-rc-main/10">Kec. {selectedAddress.district}</span>}
+                                    {selectedAddress.regency && <span className="bg-rc-main/5 px-2 py-0.5 rounded border border-rc-main/10">{selectedAddress.regency}</span>}
+                                    {selectedAddress.province && <span className="bg-rc-main/5 px-2 py-0.5 rounded border border-rc-main/10">Prov. {selectedAddress.province}</span>}
+                                </div>
                                 <div className="text-xs mb-1 line-clamp-2">{selectedAddress.full_address}</div>
                                 {selectedAddress.note && <div className="text-[10px] text-teal-400 font-bold bg-teal-400/10 px-2 py-1 rounded w-fit italic mt-1">"{selectedAddress.note}"</div>}
                             </div>
@@ -543,6 +629,11 @@ export default function Checkout() {
                                         </div>
                                         <div className="font-bold text-rc-main text-sm">{addr.receiver_name}</div>
                                         <div className="text-xs text-rc-muted mb-1">{addr.phone_number}</div>
+                                        <div className="text-[10px] text-rc-muted/80 uppercase font-black tracking-tighter flex flex-wrap gap-x-2 items-center mb-2">
+                                            {addr.district && <span className="bg-rc-main/5 px-2 py-0.5 rounded border border-rc-main/10">Kec. {addr.district}</span>}
+                                            {addr.regency && <span className="bg-rc-main/5 px-2 py-0.5 rounded border border-rc-main/10">{addr.regency}</span>}
+                                            {addr.province && <span className="bg-rc-main/5 px-2 py-0.5 rounded border border-rc-main/10">Prov. {addr.province}</span>}
+                                        </div>
                                         <div className="text-xs text-rc-muted line-clamp-2">{addr.full_address}</div>
                                     </div>
                                 ))

@@ -266,10 +266,26 @@ export default function Home() {
                                     >
                                         <div className="hidden sm:flex flex-col items-end">
                                             <span className="text-sm font-bold text-rc-main uppercase">{user.username}</span>
-                                            <span className="text-[10px] font-bold text-rc-muted uppercase">{user.role || 'Member'}</span>
+                                            <span className="text-[10px] font-bold text-rc-muted uppercase">
+                                                {{
+                                                    'user': 'Member',
+                                                    'user_premium': 'Member Premium',
+                                                    'shop_owner': 'Pemilik Toko',
+                                                    'shop_staff': 'Staff Toko',
+                                                    'admin_kurir': 'Admin Kurir',
+                                                    'kurir_staff': 'Kurir Lapangan',
+                                                    'sortir_kurir': 'Sortir Kurir',
+                                                    'admin_logistik': 'Admin Logistik',
+                                                    'sortir_logistik': 'Sortir Logistik',
+                                                    'logistik_internal': 'Logistik Internal',
+                                                    'logistik_external': 'Logistik Eksternal',
+                                                    'admin_staff': 'Staff Admin',
+                                                    'super_admin': 'Super Admin'
+                                                }[user.role] || user.role || 'Member'}
+                                            </span>
                                         </div>
                                         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-md bg-rc-card text-rc-logo flex justify-center items-center font-bold text-sm sm:text-lg overflow-hidden border-[0.5px] border-rc-main/20 transition-all group-hover:border-rc-main">
-                                            {user.avatar ? <img src={`/storage/${user.avatar}`} className="w-full h-full object-cover" alt="avatar" /> : user.username?.charAt(0).toUpperCase()}
+                                            <img src={user.full_avatar_url} className="w-full h-full object-cover" alt="avatar" />
                                         </div>
                                         <i className={`fa-solid fa-chevron-down text-[10px] sm:text-xs text-rc-muted group-hover:text-rc-main transition-transform duration-300 hidden sm:block ${isProfileOpen ? 'rotate-180' : ''}`}></i>
                                     </div>
@@ -286,25 +302,44 @@ export default function Home() {
                                                 </Link>
 
                                                 <div className="h-[0.5px] w-full bg-rc-main/10 my-1"></div>
-                                                <Link to="/toko" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3 px-4 py-4 text-xs font-bold text-rc-logo hover:bg-rc-logo hover:text-rc-bg rounded-sm transition-colors uppercase">
-                                                    <i className="fa-solid fa-shop w-4 text-center"></i> Dagang / Toko
-                                                </Link>
+                                                
+                                                {/* Akses Toko */}
+                                                {(user.role === 'shop_owner' || user.role === 'shop_staff' || user.role === 'super_admin' || user.role === 'admin_staff') && (
+                                                    <Link to="/toko" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3 px-4 py-4 text-xs font-bold text-rc-logo hover:bg-rc-logo hover:text-rc-bg rounded-sm transition-colors uppercase">
+                                                        <i className="fa-solid fa-shop w-4 text-center"></i> Toko
+                                                    </Link>
+                                                )}
 
-                                                {user.role && user.role !== 'user' && user.role !== 'toko' && <div className="h-[0.5px] w-full bg-rc-main/10 my-1"></div>}
+                                                {/* Akses Kantor Kurir */}
+                                                {(['admin_kurir', 'kurir_staff', 'sortir_kurir', 'super_admin', 'admin_staff'].includes(user.role) || user.pending_role === 'admin_kurir') && (
+                                                    user.pending_role === 'admin_kurir' || (user.role === 'admin_kurir' && user.status === 'pending') ? (
+                                                        <div onClick={() => alert("Kemitraan Anda sedang ditinjau oleh Super Admin!")} className="flex items-center gap-3 px-4 py-4 text-xs font-bold text-yellow-500 hover:bg-yellow-600/10 rounded-sm cursor-pointer transition-colors uppercase">
+                                                            <i className="fa-solid fa-clock w-4 text-center"></i> Masih Pendaftaran (Mitra)
+                                                        </div>
+                                                    ) : (
+                                                        <Link to="/kurir" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3 px-4 py-4 text-xs font-bold text-green-400 hover:bg-green-600 hover:text-white rounded-sm transition-colors uppercase">
+                                                            <i className="fa-solid fa-truck-fast w-4 text-center"></i> Kantor Kurir
+                                                        </Link>
+                                                    )
+                                                )}
 
-                                                {(user.role === 'super_admin' || user.role === 'admin_staff' || user.role === 'admin') && (
+                                                {/* Akses Kantor Logistik */}
+                                                {(['admin_logistik', 'sortir_logistik', 'logistik_internal', 'logistik_external', 'super_admin', 'admin_staff'].includes(user.role) || user.pending_role === 'admin_logistik') && (
+                                                    user.pending_role === 'admin_logistik' || (user.role === 'admin_logistik' && user.status === 'pending') ? (
+                                                        <div onClick={() => alert("Kemitraan Anda sedang ditinjau oleh Super Admin!")} className="flex items-center gap-3 px-4 py-4 text-xs font-bold text-yellow-500 hover:bg-yellow-600/10 rounded-sm cursor-pointer transition-colors uppercase">
+                                                            <i className="fa-solid fa-clock w-4 text-center"></i> Masih Pendaftaran (Mitra)
+                                                        </div>
+                                                    ) : (
+                                                        <Link to="/logistik" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3 px-4 py-4 text-xs font-bold text-teal-400 hover:bg-teal-600 hover:text-white rounded-sm transition-colors uppercase">
+                                                            <i className="fa-solid fa-warehouse w-4 text-center"></i> Kantor Logistik
+                                                        </Link>
+                                                    )
+                                                )}
+
+                                                {/* Akses Kantor Admin */}
+                                                {(user.role === 'super_admin' || user.role === 'admin_staff') && (
                                                     <Link to="/admin" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3 px-4 py-4 text-xs font-bold text-blue-400 hover:bg-blue-600 hover:text-white rounded-sm transition-colors uppercase">
-                                                        <i className="fa-solid fa-shield-halved w-4 text-center"></i> Portal Admin
-                                                    </Link>
-                                                )}
-                                                {(user.role === 'admin_kurir' || user.role === 'kurir_staff' || user.role === 'super_admin') && (
-                                                    <Link to="/kurir" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3 px-4 py-4 text-xs font-bold text-green-400 hover:bg-green-600 hover:text-white rounded-sm transition-colors uppercase">
-                                                        <i className="fa-solid fa-truck-fast w-4 text-center"></i> Portal Kurir
-                                                    </Link>
-                                                )}
-                                                {(user.role === 'admin_logistik' || user.role === 'logistik_staff' || user.role === 'super_admin') && (
-                                                    <Link to="/logistik" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3 px-4 py-4 text-xs font-bold text-teal-400 hover:bg-teal-600 hover:text-white rounded-sm transition-colors uppercase">
-                                                        <i className="fa-solid fa-warehouse w-4 text-center"></i> Portal Logistik
+                                                        <i className="fa-solid fa-shield-halved w-4 text-center"></i> Kantor Admin
                                                     </Link>
                                                 )}
 
@@ -342,60 +377,78 @@ export default function Home() {
                 </div>
             </div>
 
-            {/* Hero Banner Carousel */}
+            {/* Hero Banner Carousel - Fixed 16:9 Aspect Ratio */}
             {!searchQuery && (
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
-                    <div className="relative w-full h-[220px] md:h-[400px] rounded-2xl md:rounded-[2rem] overflow-hidden border-[0.5px] border-rc-main/10 shadow-[0_0_30px_rgba(0,0,0,0.8)] group">
+                    <div className="relative w-full aspect-[16/9] rounded-[2rem] md:rounded-[3rem] overflow-hidden border-[0.5px] border-rc-main/10 shadow-[0_0_50px_rgba(0,0,0,0.9)] group">
                         {banners.map((b, idx) => (
                             <div
                                 key={idx}
-                                className={`absolute inset-0 transition-opacity duration-1000 ${idx === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
+                                className={`absolute inset-0 transition-all duration-1000 ease-in-out ${idx === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0'}`}
                             >
-                                <img src={b.image_url.startsWith('http') ? b.image_url : `/storage/${b.image_url}`} className="w-full h-full object-cover transform scale-105 group-hover:scale-100 transition-transform duration-[5000ms]" alt="Banner Promo" />
+                                {/* Image - Consistent Scale */}
+                                <img 
+                                    src={b.full_url} 
+                                    className="w-full h-full object-cover object-center" 
+                                    alt="Banner Promo" 
+                                />
 
-                                {/* Deep Premium Gradient Overlay */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-rc-bg via-rc-bg/40 to-black/10"></div>
+                                {/* Sophisticated Multi-layer Overlay */}
+                                <div className="absolute inset-0 bg-gradient-to-tr from-rc-bg via-rc-bg/20 to-transparent opacity-80"></div>
+                                <div className="absolute inset-0 bg-gradient-to-t from-rc-bg via-transparent to-transparent"></div>
+                                <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-[2rem] md:rounded-[3rem]"></div>
 
-                                {/* Glassmorphism Text Panel */}
+                                {/* Content Panel - Floating Text for Maximum Visibility */}
                                 {(b.title || b.description) && (
-                                    <div className="absolute bottom-6 md:bottom-12 left-4 md:left-12 max-w-[85%] lg:max-w-xl p-4 md:p-6 rounded-2xl md:rounded-[2rem] bg-rc-bg/30 md:bg-rc-bg/20 backdrop-blur-md border-[0.5px] border-rc-main/10 shadow-2xl">
-                                        {b.title && <h3 className="text-transparent bg-clip-text bg-gradient-to-r from-rc-logo to-white md:to-gray-200 text-xl md:text-4xl font-extrabold uppercase drop-shadow-lg mb-1 md:mb-2 leading-tight">{b.title}</h3>}
-                                        {b.description && <p className="text-gray-300 text-[10px] md:text-sm font-semibold tracking-wide drop-shadow-md line-clamp-2 leading-relaxed">{b.description}</p>}
-                                        {b.link_url && (
-                                            <a href={b.link_url} className="inline-block mt-3 md:mt-5 bg-gradient-to-r from-rc-logo to-yellow-600 shadow-[0_0_15px_rgba(255,204,0,0.3)] text-rc-bg font-extrabold text-[10px] md:text-sm px-5 py-2 md:px-8 md:py-3 rounded-full hover:scale-105 hover:shadow-[0_0_25px_rgba(255,204,0,0.6)] transition-all flex items-center gap-2 max-w-max uppercase tracking-widest">
-                                                Jelajahi <i className="fa-solid fa-arrow-right-long text-[10px] md:text-xs"></i>
-                                            </a>
+                                    <div className={`absolute bottom-10 md:bottom-20 left-6 md:left-20 max-w-[90%] lg:max-w-3xl transition-all duration-700 delay-300 ${idx === currentSlide ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
+                                        
+
+
+                                        {/* Title with Powerful Shadow for Readability */}
+                                        {b.title && (
+                                            <h3 className="text-4xl md:text-7xl font-black leading-none mb-4 tracking-tighter drop-shadow-[0_8px_15px_rgba(0,0,0,0.8)]">
+                                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-rc-logo via-yellow-200 to-white">
+                                                    {b.title}
+                                                </span>
+                                            </h3>
+                                        )}
+
+                                        {/* Description - Pure Text, No Border, No Box */}
+                                        {b.description && (
+                                            <p className="text-gray-100 text-sm md:text-xl font-bold leading-relaxed tracking-wide drop-shadow-[0_4px_6px_rgba(0,0,0,0.8)] opacity-95 max-w-xl">
+                                                {b.description}
+                                            </p>
                                         )}
                                     </div>
                                 )}
                             </div>
                         ))}
 
-                        {/* Navigation Arrows (PC Only or Visible on Hover) */}
-                        <div className="absolute inset-0 z-20 flex items-center justify-between px-2 md:px-4 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                        {/* Navigation Arrows - Minimalist & Modern */}
+                        <div className="absolute inset-y-0 left-4 z-20 flex items-center">
                             <button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); prevSlide(); }}
-                                className="w-8 h-8 md:w-12 md:h-12 rounded-full bg-rc-bg/40 backdrop-blur-md border border-rc-main/10 text-rc-main flex items-center justify-center hover:bg-rc-logo hover:text-rc-bg hover:border-rc-logo transition-all duration-300 pointer-events-auto shadow-xl"
-                                title="Sebelumnya"
+                                className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 text-white flex items-center justify-center hover:bg-rc-logo hover:text-rc-bg hover:scale-110 transition-all duration-500 opacity-0 group-hover:opacity-100"
                             >
-                                <i className="fa-solid fa-chevron-left text-[10px] md:text-base"></i>
+                                <i className="fa-solid fa-chevron-left text-sm md:text-xl"></i>
                             </button>
+                        </div>
+                        <div className="absolute inset-y-0 right-4 z-20 flex items-center">
                             <button
                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); nextSlide(); }}
-                                className="w-8 h-8 md:w-12 md:h-12 rounded-full bg-rc-bg/40 backdrop-blur-md border border-rc-main/10 text-rc-main flex items-center justify-center hover:bg-rc-logo hover:text-rc-bg hover:border-rc-logo transition-all duration-300 pointer-events-auto shadow-xl"
-                                title="Berikutnya"
+                                className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-white/5 backdrop-blur-md border border-white/10 text-white flex items-center justify-center hover:bg-rc-logo hover:text-rc-bg hover:scale-110 transition-all duration-500 opacity-0 group-hover:opacity-100"
                             >
-                                <i className="fa-solid fa-chevron-right text-[10px] md:text-base"></i>
+                                <i className="fa-solid fa-chevron-right text-sm md:text-xl"></i>
                             </button>
                         </div>
 
-                        {/* Elegant Navigation Indicators */}
-                        <div className="absolute inset-x-0 bottom-4 z-20 flex justify-center gap-2 md:gap-3">
+                        {/* Modern Progress Indicators */}
+                        <div className="absolute bottom-8 right-8 md:right-16 z-20 flex gap-3">
                             {banners.map((_, idx) => (
                                 <button
                                     key={idx}
                                     onClick={() => setCurrentSlide(idx)}
-                                    className={`h-1.5 md:h-2 rounded-full transition-all duration-300 ${idx === currentSlide ? 'w-8 md:w-10 bg-rc-logo shadow-[0_0_10px_rgba(255,204,0,0.8)]' : 'w-2 md:w-3 bg-white/30 hover:bg-white/50 backdrop-blur-md'}`}
+                                    className={`h-1.5 rounded-full transition-all duration-500 ${idx === currentSlide ? 'w-12 bg-rc-logo shadow-[0_0_20px_rgba(255,204,0,0.6)]' : 'w-4 bg-white/20 hover:bg-white/40'}`}
                                 ></button>
                             ))}
                         </div>
@@ -420,7 +473,7 @@ export default function Home() {
                         { name: 'Aksesoris', icon: 'fa-gem' },
                         { name: 'Gaya Pria', icon: 'fa-user-tie' },
                         { name: 'Gaya Wanita', icon: 'fa-person-dress' },
-                        { name: 'Jam Tangan', icon: 'fa-watch' },
+                        { name: 'Jam Tangan', icon: 'fa-clock' },
                         { name: 'Tas & Koper', icon: 'fa-suitcase-rolling' },
                         { name: 'Sepatu', icon: 'fa-shoe-prints' },
                         { name: 'Kesehatan', icon: 'fa-heart-pulse' },
@@ -469,10 +522,10 @@ export default function Home() {
                     <div className="relative group">
                         <div 
                             id="flash-sale-container"
-                            className="flex overflow-x-auto gap-4 md:gap-6 pb-6 no-scrollbar snap-x scroll-smooth"
+                            className="flex overflow-x-auto gap-4 md:gap-6 pb-10 no-scrollbar snap-x scroll-smooth -mx-4 px-4 md:mx-0 md:px-0"
                         >
                             {flashSaleProducts.slice(0, 15).map(product => (
-                                <div key={`flash-${product.id}`} className="flex-shrink-0 w-[170px] md:w-[240px] snap-start">
+                                <div key={`flash-${product.id}`} className="flex-shrink-0 w-[155px] md:w-[240px] snap-start">
                                     <ProductCard product={product} hideActions={true} />
                                 </div>
                             ))}
@@ -480,13 +533,20 @@ export default function Home() {
                             {/* Lihat Lengkap Button Card */}
                             <div 
                                 onClick={() => navigate('/flash-sale')}
-                                className="flex-shrink-0 w-[170px] md:w-[240px] snap-start flex flex-col items-center justify-center bg-rc-card/30 rounded-2xl border-[0.5px] border-rc-logo/20 group/btn hover:bg-rc-logo/5 transition-all cursor-pointer"
+                                className="flex-shrink-0 w-[155px] md:w-[240px] snap-start flex flex-col items-center justify-center bg-rc-card/30 rounded-[2.5rem] border border-rc-logo/20 group/btn hover:bg-rc-logo/5 transition-all cursor-pointer h-full min-h-[240px] md:min-h-[350px]"
                             >
-                                <div className="w-14 h-14 rounded-full bg-rc-logo/10 border border-rc-logo/20 flex items-center justify-center mb-4 group-hover/btn:bg-rc-logo transition-all duration-300">
-                                    <i className="fa-solid fa-arrow-right text-xl text-rc-logo group-hover/btn:text-rc-bg group-hover/btn:translate-x-1 transition-all"></i>
+                                <div className="w-14 h-14 md:w-20 md:h-20 rounded-full bg-rc-logo/10 border border-rc-logo/20 flex items-center justify-center mb-6 group-hover/btn:bg-rc-logo transition-all duration-300">
+                                    <i className="fa-solid fa-arrow-right text-xl md:text-2xl text-rc-logo group-hover/btn:text-rc-bg group-hover/btn:translate-x-2 transition-all"></i>
                                 </div>
-                                <p className="text-rc-logo font-black text-[10px] uppercase tracking-[0.3em] text-center">Lihat Semua</p>
+                                <p className="text-rc-logo font-black text-[10px] md:text-xs uppercase tracking-[0.4em] text-center px-4">Eksplor Radar</p>
                             </div>
+                        </div>
+
+                        {/* Swipe Hint for Mobile */}
+                        <div className="flex md:hidden justify-center gap-2 mt-[-10px] pb-6">
+                            <div className="w-10 h-1 bg-rc-logo rounded-full opacity-40"></div>
+                            <div className="w-2 h-1 bg-rc-main/10 rounded-full"></div>
+                            <div className="w-1 h-1 bg-rc-main/10 rounded-full"></div>
                         </div>
 
                         {/* Navigation Arrows for Desktop */}

@@ -11,6 +11,7 @@ export default function Information() {
 
     // States
     const [orders, setOrders] = useState({ pending: [], processing: [], shipped: [], completed: [] });
+    const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -48,7 +49,27 @@ export default function Information() {
 
     useEffect(() => {
         fetchOrders();
+        fetchNotifications();
     }, []);
+
+    const fetchNotifications = async () => {
+        try {
+            const res = await axios.get('/api/notifications');
+            setNotifications(res.data);
+        } catch (err) {}
+    };
+
+    const handleAcceptInvite = async (notifId) => {
+        try {
+            await axios.post(`/api/user/accept-invite/${notifId}`);
+            alert("Selamat! Anda sekarang resmi bergabung sebagai staff.");
+            fetchNotifications();
+            // Refresh user info globally if possible
+            window.location.reload();
+        } catch (err) {
+            alert(err.response?.data?.message || "Gagal menerima undangan");
+        }
+    };
 
     const handleBatalBayar = async (id) => {
         if (!window.confirm("Apakah Anda yakin ingin membatalkan pesanan ini?\n\nPerhatian: Jika pesanan ini di-checkout bersamaan dengan toko lain (satu kali bayar), maka membatalkan pesanan ini JUGA akan membatalkan pesanan dari toko lain tersebut secara otomatis. Stok akan dikembalikan ke toko.")) return;
@@ -194,7 +215,8 @@ export default function Information() {
         { key: 'pending', label: 'Belum Bayar', icon: 'fa-wallet' },
         { key: 'processing', label: 'Dikemas', icon: 'fa-box' },
         { key: 'shipped', label: 'Dikirim', icon: 'fa-truck-fast' },
-        { key: 'completed', label: 'Selesai', icon: 'fa-check-double' }
+        { key: 'completed', label: 'Selesai', icon: 'fa-check-double' },
+        { key: 'notifikasi', label: 'Notifikasi & Undangan', icon: 'fa-bell' }
     ];
 
     return (
@@ -232,6 +254,41 @@ export default function Information() {
                         {loading ? (
                             <div className="space-y-4">
                                 {[1,2,3].map(i => <div key={i} className="w-full h-32 bg-rc-card border-[0.5px] border-rc-main/10 rounded-xl animate-pulse"></div>)}
+                            </div>
+                        ) : activeTab === 'notifikasi' ? (
+                            <div className="animate-fade-in space-y-4">
+                                {notifications.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center h-48 text-rc-muted font-light tracking-wide opacity-70">
+                                        <i className="fa-solid fa-bell-slash text-4xl mb-4 text-rc-main/20"></i>
+                                        Tidak ada notifikasi baru.
+                                    </div>
+                                ) : (
+                                    notifications.map(notif => (
+                                        <div key={notif.id} className="bg-rc-bg/50 border-[0.5px] border-rc-main/10 rounded-xl p-6 hover:border-rc-logo/30 transition-all">
+                                            <div className="flex gap-4 items-start">
+                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${notif.type === 'staff_invite' ? 'bg-rc-logo text-rc-bg' : 'bg-rc-main/5 text-rc-muted'}`}>
+                                                    <i className={`fa-solid ${notif.type === 'staff_invite' ? 'fa-id-badge' : 'fa-info-circle'}`}></i>
+                                                </div>
+                                                <div className="flex-grow">
+                                                    <h4 className="text-sm font-bold uppercase text-rc-main mb-1">{notif.type === 'staff_invite' ? 'Undangan Rekrutmen' : 'Informasi'}</h4>
+                                                    <p className="text-xs text-rc-muted leading-relaxed mb-4">{notif.message}</p>
+                                                    
+                                                    {notif.type === 'staff_invite' && (
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => handleAcceptInvite(notif.id)} className="bg-rc-logo text-rc-bg text-[10px] font-black uppercase tracking-widest px-6 py-2.5 rounded-lg shadow-lg shadow-rc-logo/20 hover:bg-yellow-400 transition">
+                                                                Terima & Bergabung
+                                                            </button>
+                                                            <button className="bg-rc-main/5 text-rc-muted text-[10px] font-bold uppercase px-6 py-2.5 rounded-lg hover:bg-rc-main/10 transition">
+                                                                Tolak
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <span className="text-[9px] text-rc-muted font-bold opacity-50">{new Date(notif.created_at).toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
                             </div>
                         ) : orders[activeTab]?.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-48 text-rc-muted font-light tracking-wide opacity-70">
@@ -317,7 +374,7 @@ export default function Information() {
                                                                 onSuccess: async () => { 
                                                                     alert("Pembayaran berhasil! Silahkan tunggu validasi sistem."); 
                                                                     fetchOrders(); 
-                                                                },
+                                                                  },
                                                                 onPending: () => { alert("Menunggu pembayaran Anda."); },
                                                                 onError: () => { alert("Pembayaran gagal."); }
                                                             });
@@ -385,6 +442,11 @@ export default function Information() {
                                                 </div>
                                                 <div className="text-[10px] text-rc-muted/60 mb-2 font-bold uppercase">{new Date(t.created_at).toLocaleString('id-ID')}</div>
                                                 <p className="text-[11px] text-rc-main font-medium leading-relaxed mb-1 italic">"{t.note}"</p>
+                                                {t.proof_image && (
+                                                    <div className="mt-2 mb-3 w-full max-w-[200px] aspect-square rounded-xl overflow-hidden border border-rc-main/10 shadow-lg">
+                                                        <img src={`/storage/${t.proof_image}`} className="w-full h-full object-cover cursor-zoom-in" onClick={() => window.open(`/storage/${t.proof_image}`, '_blank')} />
+                                                    </div>
+                                                )}
                                                 <p className="text-[10px] text-rc-muted uppercase"><i className="fa-solid fa-location-arrow text-rc-logo/50 mr-1"></i> {t.location}</p>
                                             </div>
                                         </div>

@@ -11,8 +11,23 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('addresses_and_orders', function (Blueprint $table) {
-            //
+        Schema::table('user_addresses', function (Blueprint $table) {
+            if (Schema::hasColumn('user_addresses', 'latitude')) {
+                $table->decimal('latitude', 10, 8)->nullable()->change();
+            } else {
+                $table->decimal('latitude', 10, 8)->nullable();
+            }
+
+            if (Schema::hasColumn('user_addresses', 'longitude')) {
+                $table->decimal('longitude', 11, 8)->nullable()->change();
+            } else {
+                $table->decimal('longitude', 11, 8)->nullable();
+            }
+        });
+
+        Schema::table('orders', function (Blueprint $table) {
+            $table->decimal('shipping_latitude', 10, 8)->nullable()->after('address_info');
+            $table->decimal('shipping_longitude', 11, 8)->nullable()->after('shipping_latitude');
         });
     }
 
@@ -21,8 +36,12 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('addresses_and_orders', function (Blueprint $table) {
-            //
+        Schema::table('user_addresses', function (Blueprint $table) {
+            $table->dropColumn(['latitude', 'longitude']);
+        });
+
+        Schema::table('orders', function (Blueprint $table) {
+            $table->dropColumn(['shipping_latitude', 'shipping_longitude']);
         });
     }
 };

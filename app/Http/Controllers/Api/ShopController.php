@@ -18,6 +18,7 @@ class ShopController extends Controller
             'url_toko' => 'required|string|unique:shops',
             'slogan' => 'nullable|string',
             'alamat_toko' => 'nullable|string',
+            'region_id' => 'nullable|exists:regions,id',
             'kode_negara' => 'nullable|string',
             'no_telepon' => 'nullable|string',
             'kurir' => 'nullable|array',
@@ -35,6 +36,10 @@ class ShopController extends Controller
         $shop->url_toko = $request->url_toko;
         $shop->slogan = $request->slogan;
         $shop->alamat_toko = $request->alamat_toko ?? '-';
+        $shop->region_id = $request->region_id;
+        $shop->province = $request->province;
+        $shop->regency = $request->regency;
+        $shop->district = $request->district;
         $shop->no_telepon = ($request->kode_negara ?? '') . ($request->no_telepon ?? '');
         $shop->kurir = json_encode($request->kurir ?? []);
 
@@ -58,10 +63,10 @@ class ShopController extends Controller
 
         $shop->save();
 
-        // Update user role to toko (hanya jika dia user biasa)
+        // Update user role to shop_owner (hanya jika dia user biasa/premium)
         $user = $request->user();
-        if($user->role === 'user' || $user->role === null) {
-            $user->role = 'toko';
+        if(in_array($user->role, ['user', 'user_premium', null])) {
+            $user->role = 'shop_owner';
             $user->save();
         }
 
@@ -73,9 +78,10 @@ class ShopController extends Controller
 
     public function getMyShop(Request $request)
     {
-        $shop = $request->user()->shop()
-             ->with(['products.images', 'products.variants', 'orders.items.product'])
-             ->firstOrFail();
+        $shop = $this->getShopForUser($request->user());
+        if (!$shop) return response()->json(['message' => 'Toko tidak ditemukan'], 404);
+
+        $shop->load(['products.images', 'products.variants', 'orders.items.product']);
         return response()->json($shop);
     }
 
@@ -105,6 +111,9 @@ class ShopController extends Controller
         if ($request->has('alamat_toko')) $shop->alamat_toko = $request->alamat_toko;
         if ($request->has('latitude')) $shop->latitude = $request->latitude;
         if ($request->has('longitude')) $shop->longitude = $request->longitude;
+        if ($request->has('province')) $shop->province = $request->province;
+        if ($request->has('regency')) $shop->regency = $request->regency;
+        if ($request->has('district')) $shop->district = $request->district;
 
         if ($request->hasFile('foto_profil')) {
             $manager = new ImageManager(new Driver());
@@ -140,7 +149,14 @@ class ShopController extends Controller
 
     public function updateOrderStatus(Request $request, $orderId)
     {
-        $shop = $request->user()->shop;
+        $user = $request->user();
+        $shop = $user->shop;
+        
+        // Support for shop staff
+        if (!$shop && $user->role === 'shop_staff' && $user->parent_id) {
+            $shop = Shop::where('user_id', $user->parent_id)->first();
+        }
+
         if (!$shop) return response()->json(['message' => 'Toko tidak ditemukan'], 404);
 
         $request->validate(['status' => 'required|in:processing,ready_for_pickup']);
@@ -159,6 +175,15 @@ class ShopController extends Controller
                     'note' => 'Penjual telah mengemas pesanan dan menunggu kurir penjemput.',
                     'user_id' => $request->user()->id
                 ]);
+
+                // Notifikasi global atau region (simulasi)
+                // Di sini kita buat notifikasi untuk pembeli juga
+                \App\Models\Notification::create([
+                    'user_id' => $order->user_id,
+                    'type' => 'order_status',
+                    'message' => "Pesanan #{$order->order_number} Anda di {$shop->nama_toko} sudah siap dan menunggu kurir.",
+                    'reference_id' => $order->id
+                ]);
             }
         });
 
@@ -167,7 +192,7 @@ class ShopController extends Controller
 
     public function getProfit(Request $request) 
     {
-        $shop = $request->user()->shop;
+        $shop = $this->getShopForUser($request->user());
         if (!$shop) return response()->json(['message' => 'Toko tidak ditemukan'], 404);
 
         $completedOrderIds = \App\Models\Order::where('shop_id', $shop->id)
@@ -188,14 +213,94 @@ class ShopController extends Controller
         }
         
         $totalProfit = $itemsTotal - $shopDiscounts;
+        
+        $totalAdminFee = \App\Models\Order::whereIn('id', $completedOrderIds)
+            ->sum('admin_fee_amount');
+            
+        $netProfit = $totalProfit - $totalAdminFee;
         $completedOrdersCount = $completedOrderIds->count();
 
         $totalWithdrawn = \App\Models\Withdrawal::where('user_id', $request->user()->id)->where('type', 'shop')->where('status', '!=', 'rejected')->sum('amount');
         
         return response()->json([
-            'total_profit' => $totalProfit,
+            'total_profit' => $netProfit,
+            'gross_profit' => $totalProfit,
+            'admin_fee_deducted' => $totalAdminFee,
             'completed_orders_count' => $completedOrdersCount,
             'withdrawn' => $totalWithdrawn
         ]);
+    }
+    public function getShopInsights(Request $request)
+    {
+        $shop = $this->getShopForUser($request->user());
+        if (!$shop) return response()->json(['message' => 'Toko tidak ditemukan'], 404);
+
+        // Weekly Revenue Chart Data
+        $revenueData = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $date = now()->subDays($i)->format('Y-m-d');
+            $dailyTotal = \App\Models\Order::where('shop_id', $shop->id)
+                ->where('status', 'completed')
+                ->whereDate('created_at', $date)
+                ->sum('total_amount');
+            $revenueData[] = [
+                'name' => now()->subDays($i)->format('D'),
+                'revenue' => (float) $dailyTotal
+            ];
+        }
+
+        // Top Products by Views & Sales
+        $topProducts = \App\Models\Product::where('shop_id', $shop->id)
+            ->orderBy('views', 'desc')
+            ->take(5)
+            ->get(['id', 'nama_produk', 'views', 'cart_adds']);
+
+        return response()->json([
+            'revenue_chart' => $revenueData,
+            'top_products' => $topProducts,
+            'summary' => [
+                'total_products' => \App\Models\Product::where('shop_id', $shop->id)->count(),
+                'total_orders' => \App\Models\Order::where('shop_id', $shop->id)->count(),
+                'pending_orders' => \App\Models\Order::where('shop_id', $shop->id)->whereIn('status', ['paid', 'pending'])->count(),
+            ]
+        ]);
+    }
+
+    public function inviteStaff(Request $request)
+    {
+        $request->validate(['email' => 'required|email']);
+        $shop = $this->getShopForUser($request->user());
+        
+        $targetUser = \App\Models\User::where('email', $request->email)->first();
+        if (!$targetUser) {
+            return response()->json(['message' => 'Pengguna dengan email tersebut tidak ditemukan'], 404);
+        }
+
+        if ($targetUser->parent_id) {
+            return response()->json(['message' => 'Pengguna ini sudah menjadi staff di tempat lain'], 400);
+        }
+
+        \App\Models\Notification::create([
+            'user_id' => $targetUser->id,
+            'type' => 'staff_invite',
+            'message' => "Toko {$shop->nama_toko} mengundang Anda untuk bergabung sebagai Staff Toko.",
+            'data' => json_encode([
+                'inviter_id' => $request->user()->id,
+                'role' => 'shop_staff',
+                'shop_name' => $shop->nama_toko
+            ])
+        ]);
+
+        return response()->json(['message' => 'Undangan berhasil dikirim ke ' . $request->email]);
+    }
+    private function getShopForUser($user)
+    {
+        if ($user->shop) return $user->shop;
+        
+        if ($user->role === 'shop_staff' && $user->parent_id) {
+            return Shop::where('user_id', $user->parent_id)->first();
+        }
+
+        return null;
     }
 }

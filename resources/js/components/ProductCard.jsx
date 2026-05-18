@@ -14,6 +14,12 @@ export default function ProductCard({ product, onEdit, onDelete, hideActions = f
 
     const isRaden = product.shop?.shop_tier === 'raden';
 
+    // Pengecekan Waktu Aktif Flash Sale secara Real-time
+    const isFlashSaleActive = !!product.is_flash_sale && (
+        (!product.flash_sale_start || new Date(product.flash_sale_start) <= new Date()) &&
+        (!product.flash_sale_end || new Date(product.flash_sale_end) >= new Date())
+    );
+
     return (
         <div className="bg-rc-card rounded-xl overflow-hidden border-[0.5px] border-rc-main/20 hover:border-rc-logo transition-colors duration-300 group flex flex-col relative text-rc-main">
             <Link to={`/product/${product.slug}`} className="block relative overflow-hidden flex-grow">
@@ -28,7 +34,7 @@ export default function ProductCard({ product, onEdit, onDelete, hideActions = f
                     )}
                 </div>
                 
-                {!!product.is_flash_sale && (
+                {isFlashSaleActive && (
                     <div className="absolute top-2 left-2 bg-red-600 border border-rc-main text-rc-main text-[10px] font-bold px-2 py-1 rounded shadow-sm flex items-center gap-1">
                         <i className="fa-solid fa-bolt text-rc-logo"></i> Flash Sale
                     </div>
@@ -43,6 +49,11 @@ export default function ProductCard({ product, onEdit, onDelete, hideActions = f
                             <span className="bg-rc-muted/20 text-rc-muted px-1.5 rounded border-[0.5px] border-rc-main/30 flex items-center gap-1"><i className="fa-solid fa-store"></i> Rakyat</span>
                         )}
                         <span className="text-rc-muted truncate text-[10px]">{product.shop?.nama_toko || 'Toko'}</span>
+                        {product.country && (
+                            <span className="ml-auto text-[9px] text-rc-muted font-bold opacity-60 flex items-center gap-1 uppercase tracking-tighter">
+                                <i className="fa-solid fa-earth-americas"></i> {product.country}
+                            </span>
+                        )}
                     </div>
 
                     <h3 className="text-sm font-bold text-rc-main line-clamp-2 min-h-[40px] leading-relaxed group-hover:text-rc-logo transition-colors duration-300">

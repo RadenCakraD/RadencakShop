@@ -102,7 +102,11 @@ export default function PublicShop() {
             <div className="bg-rc-bg border-b-[0.5px] border-rc-main/10 relative">
                 <div className="w-full h-48 md:h-72 overflow-hidden bg-rc-bg relative group border-b-[0.5px] border-rc-main/10">
                     <img
-                        src={shop.banner_toko ? `/storage/${shop.banner_toko}` : defaultBanner}
+                        src={shop.full_banner_url}
+                        onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = "https://placehold.co/1200x400/1a1b23/FFCC00?text=RadenCak+Banner";
+                        }}
                         className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105 opacity-80"
                         alt="Banner Toko"
                     />
@@ -113,7 +117,11 @@ export default function PublicShop() {
                     <div className="flex flex-col md:flex-row gap-6 items-start md:items-end">
                         <div className="w-32 h-32 md:w-40 md:h-40 rounded-full border-[2px] border-rc-bg overflow-hidden bg-rc-bg p-1 flex-shrink-0">
                             <img
-                                src={shop.foto_profil ? `/storage/${shop.foto_profil}` : defaultAvatar}
+                                src={shop.full_profil_url}
+                                onError={(e) => {
+                                    e.target.onerror = null;
+                                    e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(shop.nama_toko)}&background=27272a&color=FFCC00&bold=true&size=512`;
+                                }}
                                 className="w-full h-full object-cover rounded-full"
                                 alt="Profil Toko"
                             />

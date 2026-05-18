@@ -8,9 +8,39 @@ export default function RegisterShop() {
         nama_toko: '',
         url_toko: '',
         alamat_toko: '',
+        region_id: '',
         no_telepon: '',
         kurir: ['jne', 'jnt', 'sicepat'] // default kurir
     });
+    const [regions, setRegions] = useState([]);
+
+    // Dynamic Address Form States
+    const [selectedProv, setSelectedProv] = useState('');
+    const [selectedReg, setSelectedReg] = useState('');
+    const [selectedDist, setSelectedDist] = useState('');
+    const [streetDetail, setStreetDetail] = useState('');
+
+    React.useEffect(() => {
+        let parts = [];
+        if (selectedDist) parts.push(`Kec. ${selectedDist}`);
+        if (selectedReg) parts.push(selectedReg);
+        if (selectedProv) parts.push(`Prov. ${selectedProv}`);
+        
+        const combined = parts.join(', ');
+        if (combined) {
+            // Auto sync GPS / Map positioning if we have a map (currently RegisterShop doesn't have a map but we can prepare the address)
+            // But let's at least fix the full_address combination
+        }
+
+        let fullParts = [];
+        if (streetDetail) fullParts.push(streetDetail);
+        fullParts.push(...parts);
+        setFormData(prev => ({ ...prev, alamat_toko: fullParts.join(', ') }));
+    }, [streetDetail, selectedDist, selectedReg, selectedProv]);
+
+    React.useEffect(() => {
+        axios.get('/api/regions').then(res => setRegions(res.data)).catch(err => console.error(err));
+    }, []);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
@@ -51,7 +81,13 @@ export default function RegisterShop() {
         setError(null);
 
         try {
-            await axios.post('/api/shop/register', formData);
+            const payload = {
+                ...formData,
+                province: selectedProv,
+                regency: selectedReg,
+                district: selectedDist
+            };
+            await axios.post('/api/shop/register', payload);
             alert("Toko berhasil didirikan! Selamat datang, Bos.");
             navigate('/toko', { replace: true });
         } catch (err) {
@@ -148,17 +184,78 @@ export default function RegisterShop() {
                         {/* Section 2: Lokasi & Kurir */}
                         <div className="space-y-6">
                             <div className="group relative">
-                                <label className="block text-[10px] uppercase font-light tracking-[0.2em] mb-2 text-rc-muted group-focus-within:text-rc-logo transition-colors">Alamat Markas Toko *</label>
+                                <label className="block text-[10px] uppercase font-light tracking-[0.2em] mb-2 text-rc-muted group-focus-within:text-rc-logo transition-colors">Pilih Negara (Region) *</label>
+                                <div className="relative">
+                                    <i className="fa-solid fa-earth-asia text-rc-muted absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-rc-logo transition-colors"></i>
+                                    <select 
+                                        name="region_id" 
+                                        required 
+                                        value={formData.region_id} 
+                                        onChange={e => {
+                                            handleChange(e);
+                                            setSelectedProv(''); setSelectedReg(''); setSelectedDist('');
+                                        }}
+                                        className="appearance-none block w-full pl-12 pr-4 py-4 bg-rc-bg/50 border-[0.5px] border-rc-main/20 rounded-2xl text-rc-main focus:outline-none focus:ring-0 focus:border-rc-logo transition-all font-light tracking-wide text-sm shadow-inner"
+                                    >
+                                        <option value="" className="bg-zinc-900 text-white">-- Pilih Negara --</option>
+                                        {regions.map(r => <option key={r.id} value={r.id} className="bg-zinc-900 text-white">{r.country} ({r.code})</option>)}
+                                    </select>
+                                </div>
+                            </div>
+
+                            {(() => {
+                                const activeReg = regions.find(r => r.id == formData.region_id);
+                                const allProvinces = activeReg?.islands?.flatMap(i => i.provinces || []) || [];
+                                if (allProvinces.length === 0) return null;
+                                
+                                const provObj = allProvinces.find(p => p.name === selectedProv);
+                                const regObj = provObj?.regencies?.find(r => r.name === selectedReg);
+
+                                return (
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-[0.5px] border-rc-logo/30 bg-rc-logo/5 p-4 rounded-2xl">
+                                        <div>
+                                            <label className="text-[9px] font-bold text-rc-logo uppercase mb-1.5 block tracking-widest">Provinsi</label>
+                                            <select value={selectedProv} onChange={e => { setSelectedProv(e.target.value); setSelectedReg(''); setSelectedDist(''); }} className="w-full bg-rc-bg border-[0.5px] border-rc-main/20 text-rc-main text-xs font-bold p-3 rounded-lg outline-none focus:border-rc-logo">
+                                                <option value="">Pilih Provinsi</option>
+                                                {allProvinces.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                                            </select>
+                                        </div>
+                                        {selectedProv && (
+                                            <div>
+                                                <label className="text-[9px] font-bold text-rc-logo uppercase mb-1.5 block tracking-widest">Kabupaten/Kota</label>
+                                                <select value={selectedReg} onChange={e => { setSelectedReg(e.target.value); setSelectedDist(''); }} className="w-full bg-rc-bg border-[0.5px] border-rc-main/20 text-rc-main text-xs font-bold p-3 rounded-lg outline-none focus:border-rc-logo">
+                                                    <option value="">Pilih Kab/Kota</option>
+                                                    {provObj?.regencies?.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
+                                        {selectedReg && (
+                                            <div>
+                                                <label className="text-[9px] font-bold text-rc-logo uppercase mb-1.5 block tracking-widest">Kecamatan</label>
+                                                <select value={selectedDist} onChange={e => setSelectedDist(e.target.value)} className="w-full bg-rc-bg border-[0.5px] border-rc-main/20 text-rc-main text-xs font-bold p-3 rounded-lg outline-none focus:border-rc-logo">
+                                                    <option value="">Pilih Kecamatan</option>
+                                                    {regObj?.districts?.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
+
+                            <div className="group relative">
+                                <label className="flex justify-between items-center text-[10px] uppercase font-light tracking-[0.2em] mb-2 text-rc-muted group-focus-within:text-rc-logo transition-colors">
+                                    <span>Detail Alamat Markas Toko *</span>
+                                    <span className="text-[8px] font-light italic opacity-60">Hasil: {formData.alamat_toko}</span>
+                                </label>
                                 <div className="relative">
                                     <i className="fa-solid fa-location-dot text-rc-muted absolute left-4 top-4 group-focus-within:text-rc-logo transition-colors"></i>
                                     <textarea 
-                                        name="alamat_toko" 
                                         required 
-                                        rows="4"
-                                        value={formData.alamat_toko} 
-                                        onChange={handleChange}
+                                        rows="3"
+                                        value={streetDetail} 
+                                        onChange={e => setStreetDetail(e.target.value)}
                                         className="appearance-none block w-full pl-12 pr-4 py-4 bg-rc-bg/50 border-[0.5px] border-rc-main/20 rounded-2xl placeholder-rc-muted/30 text-rc-main focus:outline-none focus:ring-0 focus:border-rc-logo transition-all font-light tracking-wide text-sm resize-none shadow-inner" 
-                                        placeholder="Jl. Raden No. 1, Kota Mewah, Indonesia" 
+                                        placeholder="Jalan, RT/RW, Dusun, Patokan..." 
                                     />
                                 </div>
                             </div>

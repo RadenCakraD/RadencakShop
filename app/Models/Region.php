@@ -7,9 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 class Region extends Model
 {
     protected $fillable = [
-        'name', 'code', 'tax_rate', 'service_fee', 
+        'name', 'country', 'type', 'code', 'cross_island_fee', 'export_tax_rate', 'import_tax_rate', 'service_fee', 
         'shipping_fee_santai', 'shipping_fee_cepat',
-        'partner_fee', 'logistics_fee', 'courier_staff_fee', 'logistics_staff_fee',
-        'currency_code', 'currency_symbol', 'exchange_rate'
+        'logistics_fee_regular', 'courier_fee_regular', 'logistics_fee_fast', 'courier_fee_fast',
+        'currency_code', 'currency_symbol',
+        'islands', 'regencies', 'districts'
+    ];
+
+    protected $casts = [
+        'islands' => 'array',
+        'regencies' => 'array',
+        'districts' => 'array',
     ];
 }

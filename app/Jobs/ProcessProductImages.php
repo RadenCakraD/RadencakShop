@@ -31,28 +31,33 @@ class ProcessProductImages implements ShouldQueue
      */
     public function handle(): void
     {
-        $manager = new ImageManager(new Driver());
-        
-        // Process Product Images
-        foreach ($this->imagePaths as $path) {
-            $fullPath = storage_path('app/public/' . $path);
-            if (file_exists($fullPath)) {
-                $image = $manager->read($fullPath);
-                $image->scaleDown(1200, 1200);
-                $encoded = $image->toJpeg(75);
-                Storage::disk('public')->put($path, (string) $encoded);
+        try {
+            $manager = new ImageManager(new Driver());
+            
+            // Process Product Images
+            foreach ($this->imagePaths as $path) {
+                $fullPath = storage_path('app/public/' . $path);
+                if (file_exists($fullPath)) {
+                    $image = $manager->read($fullPath);
+                    $image->scaleDown(1200, 1200);
+                    $encoded = $image->toJpeg(75);
+                    Storage::disk('public')->put($path, (string) $encoded);
+                }
             }
-        }
-        
-        // Process Variant Images
-        foreach ($this->variantPaths as $path) {
-            $fullPath = storage_path('app/public/' . $path);
-            if (file_exists($fullPath)) {
-                $image = $manager->read($fullPath);
-                $image->scaleDown(1200, 1200);
-                $encoded = $image->toJpeg(75);
-                Storage::disk('public')->put($path, (string) $encoded);
+            
+            // Process Variant Images
+            foreach ($this->variantPaths as $path) {
+                $fullPath = storage_path('app/public/' . $path);
+                if (file_exists($fullPath)) {
+                    $image = $manager->read($fullPath);
+                    $image->scaleDown(1200, 1200);
+                    $encoded = $image->toJpeg(75);
+                    Storage::disk('public')->put($path, (string) $encoded);
+                }
             }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error("Gagal memproses gambar untuk produk ID: {$this->productId}. Error: " . $e->getMessage());
+            // Optionally: throw $e if you want the job to retry
         }
     }
 }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 export default function Register() {
     const navigate = useNavigate();
@@ -15,6 +16,7 @@ export default function Register() {
     });
     
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState(null);
 
     const handleChange = (e) => {
@@ -38,9 +40,10 @@ export default function Register() {
             if (response.data.token || response.data.access_token) {
                 const tokenString = response.data.token || response.data.access_token;
                 localStorage.setItem('auth_token', tokenString);
-                setTimeout(() => navigate('/dashboard', { replace: true }), 100);
+                toast.success('Pendaftaran Berhasil! Silakan verifikasi email Anda.');
+                setTimeout(() => navigate('/verifikasi-email', { replace: true }), 100);
             } else {
-                alert("Registrasi berhasil! Silakan login untuk melanjutkan.");
+                toast.success("Registrasi berhasil! Silakan login untuk melanjutkan.");
                 navigate('/login');
             }
         } catch (err) {
@@ -123,9 +126,16 @@ export default function Register() {
                             <label className="block text-xs uppercase font-bold mb-2 text-rc-muted group-focus-within:text-rc-logo transition-colors">Sandi Rahasia *</label>
                             <div className="relative">
                                 <i className="fa-solid fa-lock text-rc-muted absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-rc-logo transition-colors"></i>
-                                <input name="password" type="password" required value={formData.password} onChange={handleChange}
-                                    className="appearance-none block w-full pl-12 pr-4 py-4 bg-rc-bg border-[1px] border-rc-main/20 rounded-lg placeholder-rc-muted text-rc-main focus:outline-none focus:ring-0 focus:border-rc-logo transition-colors font-bold text-sm" 
+                                <input name="password" type={showPassword ? "text" : "password"} required value={formData.password} onChange={handleChange}
+                                    className="appearance-none block w-full pl-12 pr-12 py-4 bg-rc-bg border-[1px] border-rc-main/20 rounded-lg placeholder-rc-muted text-rc-main focus:outline-none focus:ring-0 focus:border-rc-logo transition-colors font-bold text-sm" 
                                     placeholder="Min 8 Karakter" />
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-rc-muted hover:text-rc-logo transition-colors"
+                                >
+                                    <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                </button>
                             </div>
                         </div>
 
@@ -133,8 +143,8 @@ export default function Register() {
                             <label className="block text-xs uppercase font-bold mb-2 text-rc-muted group-focus-within:text-rc-logo transition-colors">Konfirmasi Sandi *</label>
                             <div className="relative">
                                 <i className="fa-solid fa-shield-check text-rc-muted absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-rc-logo transition-colors"></i>
-                                <input name="password_confirmation" type="password" required value={formData.password_confirmation} onChange={handleChange}
-                                    className="appearance-none block w-full pl-12 pr-4 py-4 bg-rc-bg border-[1px] border-rc-main/20 rounded-lg placeholder-rc-muted text-rc-main focus:outline-none focus:ring-0 focus:border-rc-logo transition-colors font-bold text-sm" 
+                                <input name="password_confirmation" type={showPassword ? "text" : "password"} required value={formData.password_confirmation} onChange={handleChange}
+                                    className="appearance-none block w-full pl-12 pr-12 py-4 bg-rc-bg border-[1px] border-rc-main/20 rounded-lg placeholder-rc-muted text-rc-main focus:outline-none focus:ring-0 focus:border-rc-logo transition-colors font-bold text-sm" 
                                     placeholder="Ketik Ulang Sandi" />
                             </div>
                         </div>

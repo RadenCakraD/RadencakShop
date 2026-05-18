@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 export default function Login() {
     const navigate = useNavigate();
@@ -9,6 +10,7 @@ export default function Login() {
     // Perintah User: Email lalu Username lalu Password
     const [credentials, setCredentials] = useState({ email: '', username: '', password: '' });
     const [loading, setLoading] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
 
     const handleChange = (e) => {
@@ -24,6 +26,12 @@ export default function Login() {
         try {
             const response = await axios.post('/api/login', credentials);
             
+            if (response.data.requires_2fa) {
+                toast.success('Langkah Terakhir: Masukkan Kode 2FA');
+                navigate('/2fa-challenge', { state: { email: credentials.email, username: credentials.username } });
+                return;
+            }
+
             if (response.data.token || response.data.access_token) {
                 const tokenString = response.data.token || response.data.access_token;
                 localStorage.setItem('auth_token', tokenString);
@@ -104,9 +112,16 @@ export default function Login() {
                             <label className="block text-xs uppercase font-bold mb-2 text-rc-muted group-focus-within:text-rc-logo transition-colors">Sandi Rahasia *</label>
                             <div className="relative">
                                 <i className="fa-solid fa-lock text-rc-muted absolute left-4 top-1/2 -translate-y-1/2 group-focus-within:text-rc-logo transition-colors"></i>
-                                <input name="password" type="password" required value={credentials.password} onChange={handleChange}
-                                    className="appearance-none block w-full pl-12 pr-4 py-4 bg-rc-bg border-[1px] border-rc-main/20 rounded-lg placeholder-rc-muted text-rc-main focus:outline-none focus:ring-0 focus:border-rc-logo transition-colors font-bold text-sm" 
+                                <input name="password" type={showPassword ? "text" : "password"} required value={credentials.password} onChange={handleChange}
+                                    className="appearance-none block w-full pl-12 pr-12 py-4 bg-rc-bg border-[1px] border-rc-main/20 rounded-lg placeholder-rc-muted text-rc-main focus:outline-none focus:ring-0 focus:border-rc-logo transition-colors font-bold text-sm" 
                                     placeholder="••••••••" />
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-rc-muted hover:text-rc-logo transition-colors"
+                                >
+                                    <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -116,6 +131,7 @@ export default function Login() {
                             <input id="remember-me" name="remember-me" type="checkbox" className="h-4 w-4 bg-transparent border-[1px] border-rc-main/50 rounded cursor-pointer appearance-none checked:bg-rc-logo relative" />
                             <label htmlFor="remember-me" className="ml-3 block text-[10px] uppercase text-rc-muted cursor-pointer font-bold">Ingat Sesi Saya</label>
                         </div>
+                        <Link to="/lupa-password" id="forgot-password-link" className="text-[10px] uppercase text-rc-logo hover:opacity-80 font-bold border-b-[1px] border-rc-logo/30">Lupa Sandi?</Link>
                     </div>
 
                     <div className="pt-4">

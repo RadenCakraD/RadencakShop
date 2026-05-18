@@ -91,6 +91,7 @@ class ProductController extends Controller
             return DB::transaction(function () use ($request, $shop) {
                 $product = new Product();
                 $product->shop_id = $shop->id;
+                $product->country = $shop->user->country ?? 'Indonesia';
                 $product->nama_produk = $request->nama_produk;
                 $product->slug = Str::slug($request->nama_produk . '-' . uniqid());
                 $product->harga_jual = $request->harga_jual;
@@ -310,5 +311,16 @@ class ProductController extends Controller
 
             return response()->json(['message' => 'Produk berhasil dihapus']);
         });
+    }
+    public function incrementView($id)
+    {
+        Product::where('id', $id)->increment('views');
+        return response()->json(['success' => true]);
+    }
+
+    public function incrementCartAdd($id)
+    {
+        Product::where('id', $id)->increment('cart_adds');
+        return response()->json(['success' => true]);
     }
 }

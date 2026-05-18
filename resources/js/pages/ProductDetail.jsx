@@ -56,6 +56,16 @@ export default function ProductDetail() {
         window.scrollTo(0, 0); // Scroll to top when changing products
     }, [slug]);
 
+    // Berbagi data produk ke Raden AI
+    useEffect(() => {
+        if (product) {
+            window.dispatchEvent(new CustomEvent('raden-ai-product-context', { detail: product }));
+        }
+        return () => {
+            window.dispatchEvent(new CustomEvent('raden-ai-product-context', { detail: null }));
+        };
+    }, [product]);
+
     // Computed Values berdasarkan Variant vs Base
     const displayPrice = activeVariant ? parseFloat(activeVariant.harga_jual) : (product ? parseFloat(product.harga_jual) : 0);
     const displayOriginal = activeVariant
@@ -244,6 +254,12 @@ export default function ProductDetail() {
                             <span>{product.order_items_sum_qty || 0} TERJUAL</span>
                             <span className="w-[4px] h-[4px] bg-rc-main/20 rounded-full"></span>
                             <span className="flex items-center gap-1"><i className="fa-solid fa-tag text-rc-muted/50"></i> {product.kategori}</span>
+                            {product.country && (
+                                <>
+                                    <span className="w-[4px] h-[4px] bg-rc-main/20 rounded-full"></span>
+                                    <span className="flex items-center gap-1 text-rc-logo font-black"><i className="fa-solid fa-earth-americas"></i> {product.country}</span>
+                                </>
+                            )}
                         </div>
 
                         {/* Harga Box */}
@@ -404,14 +420,31 @@ export default function ProductDetail() {
                                             {new Date(review.created_at).toLocaleDateString('id-ID')}
                                         </div>
                                     </div>
-                                    <div className="text-sm text-rc-muted mt-3 bg-rc-bg p-4 rounded-md border-[0.5px] border-rc-main/5 font-medium">
-                                        {review.comment || <em className="opacity-50">Tidak ada komentar</em>}
-                                    </div>
-                                    {review.image && (
-                                        <div className="mt-3">
-                                            <img src={`/storage/${review.image}`} className="w-24 h-24 object-cover rounded-md border-[0.5px] border-rc-main/20 hover:scale-150 transform origin-left transition-transform duration-300 z-10 relative cursor-pointer" alt="Bukti review" />
+                                    <div className="flex flex-col md:flex-row gap-6 mt-3">
+                                        <div className="flex-1 text-sm text-rc-muted bg-rc-bg p-4 rounded-md border-[0.5px] border-rc-main/5 font-medium leading-relaxed">
+                                            {review.comment || <em className="opacity-50 text-[10px] uppercase tracking-widest">Pembeli tidak memberikan komentar tertulis</em>}
                                         </div>
-                                    )}
+                                        
+                                        {(review.images?.length > 0 || review.image) && (
+                                            <div className="flex flex-row md:flex-col lg:flex-row flex-wrap gap-2 shrink-0 md:max-w-[200px] lg:max-w-[300px]">
+                                                {review.images && Array.isArray(review.images) && review.images.map((img, idx) => (
+                                                    <img 
+                                                        key={idx}
+                                                        src={img.startsWith('http') ? img : `/storage/${img}`} 
+                                                        className="w-20 h-20 md:w-24 md:h-24 object-cover rounded-lg border-[0.5px] border-rc-main/20 hover:scale-110 transition-transform duration-300 cursor-zoom-in" 
+                                                        alt={`Bukti review ${idx + 1}`} 
+                                                    />
+                                                ))}
+                                                {review.image && !review.images && (
+                                                    <img 
+                                                        src={review.image.startsWith('http') ? review.image : `/storage/${review.image}`} 
+                                                        className="w-20 h-20 md:w-24 md:h-24 object-cover rounded-lg border-[0.5px] border-rc-main/20 hover:scale-110 transition-transform duration-300 cursor-zoom-in" 
+                                                        alt="Bukti review" 
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             ))}
                         </div>

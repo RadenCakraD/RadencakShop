@@ -43,6 +43,9 @@ class AddressController extends Controller
             'latitude' => $request->latitude,
             'longitude' => $request->longitude,
             'region_id' => $request->region_id,
+            'province' => $request->province,
+            'regency' => $request->regency,
+            'district' => $request->district,
             'is_primary' => $request->is_primary || $isFirst
         ]);
 
@@ -63,7 +66,7 @@ class AddressController extends Controller
         ]);
 
         $address->update($request->only([
-            'tag', 'receiver_name', 'phone_number', 'full_address', 'note', 'latitude', 'longitude', 'region_id'
+            'tag', 'receiver_name', 'phone_number', 'full_address', 'note', 'latitude', 'longitude', 'region_id', 'province', 'regency', 'district'
         ]));
 
         if ($request->has('is_primary') && $request->is_primary) {

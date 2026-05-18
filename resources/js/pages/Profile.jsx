@@ -38,13 +38,17 @@ export default function Profile() {
                 token: token,
                 username: userRes.data.username,
                 name: userRes.data.name || userRes.data.username,
-                avatar: userRes.data.avatar,
-                email: userRes.data.email
+                avatar: userRes.data.full_avatar_url,
+                email: userRes.data.email,
+                role: userRes.data.role
             };
-            if (!savedAccounts.find(acc => acc.username === currentAcc.username)) {
+            const existingIdx = savedAccounts.findIndex(acc => acc.username === currentAcc.username);
+            if (existingIdx !== -1) {
+                savedAccounts[existingIdx] = currentAcc;
+            } else {
                 savedAccounts.push(currentAcc);
-                localStorage.setItem('saved_accounts', JSON.stringify(savedAccounts));
             }
+            localStorage.setItem('saved_accounts', JSON.stringify(savedAccounts));
         } catch (err) {
             console.error("Gagal memuat profil", err);
             if (err.response?.status === 401) {
@@ -114,14 +118,7 @@ export default function Profile() {
                 <div className="relative mb-16 h-full flex flex-col md:flex-row items-center md:items-end gap-10">
                     <div className="relative group">
                         <div className="relative w-44 h-44 md:w-56 md:h-56 rounded-2xl border-[1px] border-rc-main/20 bg-rc-card overflow-hidden flex items-center justify-center">
-                            {user.avatar ? (
-                                <img src={`/storage/${user.avatar}`} className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="flex flex-col items-center gap-3 opacity-20">
-                                    <i className="fa-solid fa-user-shield text-7xl"></i>
-                                    <span className="text-xs uppercase font-bold">No Avatar</span>
-                                </div>
-                            )}
+                                <img src={user.full_avatar_url} className="w-full h-full object-cover" />
                         </div>
                         {user.role === 'admin' && (
                             <div className="absolute -top-4 -right-4 bg-rc-logo text-rc-bg px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 shadow-sm">
@@ -140,8 +137,28 @@ export default function Profile() {
                                     <i className="fa-solid fa-at text-rc-main"></i> {user.username}
                                 </span>
                                 <span className="bg-rc-logo text-rc-bg px-3 py-1 rounded text-xs font-bold uppercase flex items-center gap-2">
-                                    <i className="fa-solid fa-shield-halved"></i> {user.role}
+                                    <i className="fa-solid fa-shield-halved"></i> 
+                                    {{
+                                        'user': 'Member',
+                                        'user_premium': 'Member Premium',
+                                        'shop_owner': 'Pemilik Toko',
+                                        'shop_staff': 'Staff Toko',
+                                        'admin_kurir': 'Admin Kurir',
+                                        'kurir_staff': 'Kurir Lapangan',
+                                        'sortir_kurir': 'Sortir Kurir',
+                                        'admin_logistik': 'Admin Logistik',
+                                        'sortir_logistik': 'Sortir Logistik',
+                                        'logistik_internal': 'Logistik Internal',
+                                        'logistik_external': 'Logistik Eksternal',
+                                        'admin_staff': 'Staff Admin',
+                                        'super_admin': 'Super Admin'
+                                    }[user.role] || user.role}
                                 </span>
+                                {user.status === 'pending' && (
+                                    <span className="bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 px-3 py-1 rounded text-xs font-black uppercase flex items-center gap-2 animate-pulse">
+                                        <i className="fa-solid fa-clock-rotate-left"></i> Pending Review
+                                    </span>
+                                )}
                             </div>
                         </div>
 
@@ -149,9 +166,34 @@ export default function Profile() {
                             <button onClick={() => setIsEditModalOpen(true)} className="px-8 py-3 bg-rc-logo text-rc-bg hover:bg-yellow-400 rounded text-xs font-bold uppercase transition-colors flex items-center gap-2">
                                 <i className="fa-solid fa-sliders"></i> PENGATURAN AKUN
                             </button>
-                            <Link to="/toko" className="px-8 py-3 bg-rc-bg border-[1px] border-rc-main/20 text-rc-main hover:border-rc-logo rounded text-xs font-bold uppercase transition-colors flex items-center gap-2">
-                                <i className="fa-solid fa-store"></i> DASHBOARD NIAGA
-                            </Link>
+                            
+                            {/* Admin Portal */}
+                            {['super_admin', 'admin_staff'].includes(user.role) && (
+                                <Link to="/admin" className="px-8 py-3 bg-amber-500/10 border-[1px] border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-rc-bg rounded text-xs font-bold uppercase transition-all flex items-center gap-2">
+                                    <i className="fa-solid fa-user-shield"></i> PORTAL ADMIN
+                                </Link>
+                            )}
+
+                            {/* Logistics Portal */}
+                            {['super_admin', 'admin_staff', 'admin_logistik', 'sortir_logistik', 'logistik_internal', 'logistik_external'].includes(user.role) && (
+                                <Link to="/logistik" className="px-8 py-3 bg-orange-500/10 border-[1px] border-orange-500/30 text-orange-400 hover:bg-orange-500 hover:text-rc-bg rounded text-xs font-bold uppercase transition-all flex items-center gap-2">
+                                    <i className="fa-solid fa-warehouse"></i> PORTAL LOGISTIK
+                                </Link>
+                            )}
+
+                            {/* Courier Portal */}
+                            {['super_admin', 'admin_staff', 'admin_kurir', 'kurir_staff', 'sortir_kurir'].includes(user.role) && (
+                                <Link to="/kurir" className="px-8 py-3 bg-emerald-500/10 border-[1px] border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-rc-bg rounded text-xs font-bold uppercase transition-all flex items-center gap-2">
+                                    <i className="fa-solid fa-truck"></i> PORTAL KURIR
+                                </Link>
+                            )}
+
+                            {/* Shop Portal */}
+                            {['super_admin', 'admin_staff', 'shop_owner', 'shop_staff'].includes(user.role) && (
+                                <Link to="/toko" className="px-8 py-3 bg-blue-500/10 border-[1px] border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-rc-bg rounded text-xs font-bold uppercase transition-all flex items-center gap-2">
+                                    <i className="fa-solid fa-store"></i> DASHBOARD NIAGA
+                                </Link>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -194,6 +236,11 @@ export default function Profile() {
                                         <span className="bg-rc-logo text-rc-bg px-2 py-0.5 rounded text-[10px] font-black uppercase">{primaryAddress.tag}</span>
                                     </div>
                                     <p className="text-sm font-bold text-rc-muted mb-2">{primaryAddress.phone_number}</p>
+                                    <div className="text-[10px] text-rc-muted/80 uppercase font-black tracking-tighter flex flex-wrap gap-x-2 items-center mb-3">
+                                        {primaryAddress.district && <span className="bg-rc-main/5 px-2 py-0.5 rounded border border-rc-main/10">Kec. {primaryAddress.district}</span>}
+                                        {primaryAddress.regency && <span className="bg-rc-main/5 px-2 py-0.5 rounded border border-rc-main/10">{primaryAddress.regency}</span>}
+                                        {primaryAddress.province && <span className="bg-rc-main/5 px-2 py-0.5 rounded border border-rc-main/10">Prov. {primaryAddress.province}</span>}
+                                    </div>
                                     <p className="text-sm font-medium text-rc-main leading-relaxed max-w-xl">
                                         {primaryAddress.full_address}
                                     </p>
