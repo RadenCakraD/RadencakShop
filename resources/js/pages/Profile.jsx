@@ -108,7 +108,7 @@ export default function Profile() {
                 <div className="absolute inset-0 bg-gradient-to-tr from-rc-logo/5 via-transparent to-transparent pointer-events-none"></div>
                 <div className="flex flex-col items-center gap-6 mb-8 w-full animate-pulse">
                     <div className="w-28 h-28 bg-rc-bg/80 rounded-[2rem] border-[0.5px] border-rc-main/20 flex items-center justify-center relative">
-                        <i className="fa-solid fa-spinner-third fa-spin text-rc-logo text-3xl"></i>
+                        <i className="fa-solid fa-spinner text-rc-logo text-3xl animate-spin"></i>
                     </div>
                     <div className="w-44 h-8 bg-rc-bg/80 rounded-xl border-[0.5px] border-rc-main/20"></div>
                     <div className="w-24 h-4 bg-rc-bg/80 rounded-lg border-[0.5px] border-rc-main/20"></div>
@@ -129,7 +129,7 @@ export default function Profile() {
         : 'Baru Bergabung';
 
     return (
-        <div className="bg-rc-bg min-h-screen text-rc-main font-sans pb-28 overflow-x-hidden relative">
+        <div className="bg-rc-bg min-h-screen text-rc-main font-sans pb-28 overflow-x-hidden relative font-light">
             
             {/* Glowing Decorative Radial Gradients */}
             <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-rc-logo/5 blur-[120px] pointer-events-none"></div>
@@ -141,11 +141,10 @@ export default function Profile() {
                 <div className="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
                     <motion.button 
                         onClick={() => navigate(-1)} 
-                        whileHover={{ x: -4 }}
                         whileTap={{ scale: 0.95 }}
-                        className="group flex items-center gap-3 text-xs font-bold tracking-widest uppercase text-rc-muted hover:text-rc-main transition-colors duration-300"
+                        className="group flex items-center gap-3 text-xs font-bold tracking-widest uppercase text-rc-muted transition-colors duration-300"
                     >
-                        <i className="fa-solid fa-arrow-left-long text-rc-logo text-sm transition-transform group-hover:-translate-x-1"></i> Kembali
+                        <i className="fa-solid fa-arrow-left-long text-rc-logo text-sm"></i> Kembali
                     </motion.button>
                     <div className="flex items-center gap-3 bg-rc-card/50 px-4 py-1.5 rounded-full border border-rc-main/15">
                         <div className="w-2 h-2 rounded-full bg-rc-logo animate-pulse"></div>
@@ -170,29 +169,34 @@ export default function Profile() {
                     <div className="flex flex-col lg:flex-row items-center lg:items-end gap-10">
                         
                         {/* Avatar Showcase */}
-                        <div className="relative group">
-                            <motion.div 
-                                whileHover={{ scale: 1.03, rotate: 1 }}
-                                className="relative w-44 h-44 md:w-52 md:h-52 rounded-[2.5rem] p-1.5 bg-gradient-to-tr from-rc-main/20 via-rc-logo to-rc-main/10 shadow-[0_15px_40px_rgba(0,0,0,0.6)] overflow-hidden flex items-center justify-center cursor-pointer"
+                        <div className="relative">
+                            <div 
+                                className="relative w-44 h-44 md:w-52 md:h-52 rounded-[2.5rem] p-1 bg-gradient-to-tr from-rc-main/20 via-rc-logo to-rc-main/10 shadow-[0_15px_40px_rgba(0,0,0,0.6)] flex items-center justify-center cursor-pointer"
                                 onClick={() => setIsEditModalOpen(true)}
                             >
-                                <div className="w-full h-full rounded-[2.2rem] bg-rc-card overflow-hidden relative">
+                                <div className="w-full h-full rounded-[2.3rem] bg-rc-card overflow-hidden relative">
                                     <img 
                                         src={user.full_avatar_url} 
-                                        className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                                        className="w-full h-full object-cover" 
                                         alt={user.username}
                                     />
-                                    {/* Glass Overlay on Hover */}
-                                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                                        <i className="fa-solid fa-camera text-rc-logo text-3xl drop-shadow-md"></i>
-                                    </div>
                                 </div>
-                            </motion.div>
+                            </div>
 
-                            {/* Floating Indicator */}
+                            {/* Floating Active Indicator */}
                             <div className="absolute -top-3 -right-3 bg-gradient-to-r from-rc-logo to-yellow-500 text-rc-bg px-4 py-1.5 rounded-full text-[10px] font-black uppercase flex items-center gap-2 shadow-lg tracking-widest border border-rc-bg">
                                 <i className="fa-solid fa-sparkles"></i> ACTIVE
                             </div>
+
+                            {/* Permanent Touch-Friendly Floating Edit Icon */}
+                            <motion.button 
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => setIsEditModalOpen(true)}
+                                className="absolute bottom-2 right-2 w-11 h-11 rounded-full bg-rc-logo text-rc-bg border-4 border-rc-bg flex items-center justify-center shadow-lg transition-transform"
+                                title="Edit Avatar"
+                            >
+                                <i className="fa-solid fa-camera text-sm"></i>
+                            </motion.button>
                         </div>
 
                         {/* Profile Info Details */}
@@ -215,7 +219,7 @@ export default function Profile() {
 
                                     {user.status === 'pending' && (
                                         <span className="bg-yellow-500/10 text-yellow-500 border border-yellow-500/30 px-3.5 py-1.5 rounded-xl text-xs font-black uppercase flex items-center gap-2 animate-pulse">
-                                            <i className="fa-solid fa-circle-dot animate-ping text-[8px] mr-0.5"></i> Pending Review
+                                            <i className="fa-solid fa-clock text-[9px] mr-0.5 animate-spin"></i> Pending Review
                                         </span>
                                     )}
                                 </div>
@@ -224,18 +228,17 @@ export default function Profile() {
                             {/* Custom Portals Trigger Hub */}
                             <div className="flex flex-wrap justify-center lg:justify-start gap-3 pt-2">
                                 <motion.button 
-                                    whileHover={{ y: -2 }}
-                                    whileTap={{ scale: 0.98 }}
+                                    whileTap={{ scale: 0.96 }}
                                     onClick={() => setIsEditModalOpen(true)} 
-                                    className="px-6 py-3.5 bg-rc-logo text-rc-bg hover:bg-yellow-400 rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2 shadow-[0_5px_15px_rgba(255,215,0,0.15)]"
+                                    className="px-6 py-3.5 bg-rc-logo text-rc-bg rounded-xl text-xs font-black uppercase flex items-center gap-2 shadow-[0_5px_15px_rgba(255,215,0,0.15)]"
                                 >
                                     <i className="fa-solid fa-user-gear text-sm"></i> Pengaturan Akun
                                 </motion.button>
                                 
                                 {/* Admin Portal */}
                                 {['super_admin', 'admin_staff'].includes(user.role) && (
-                                    <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-                                        <Link to="/admin" className="px-6 py-3.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500 hover:text-rc-bg rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2.5">
+                                    <motion.div whileTap={{ scale: 0.96 }}>
+                                        <Link to="/admin" className="px-6 py-3.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 rounded-xl text-xs font-black uppercase flex items-center gap-2.5 inline-flex">
                                             <i className="fa-solid fa-user-shield text-sm"></i> Portal Admin
                                         </Link>
                                     </motion.div>
@@ -243,8 +246,8 @@ export default function Profile() {
 
                                 {/* Logistics Portal */}
                                 {['super_admin', 'admin_staff', 'admin_logistik', 'sortir_logistik', 'logistik_internal', 'logistik_external'].includes(user.role) && (
-                                    <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-                                        <Link to="/logistik" className="px-6 py-3.5 bg-orange-500/10 border border-orange-500/30 text-orange-400 hover:bg-orange-500 hover:text-rc-bg rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2.5">
+                                    <motion.div whileTap={{ scale: 0.96 }}>
+                                        <Link to="/logistik" className="px-6 py-3.5 bg-orange-500/10 border border-orange-500/30 text-orange-400 rounded-xl text-xs font-black uppercase flex items-center gap-2.5 inline-flex">
                                             <i className="fa-solid fa-warehouse text-sm"></i> Portal Logistik
                                         </Link>
                                     </motion.div>
@@ -252,8 +255,8 @@ export default function Profile() {
 
                                 {/* Courier Portal */}
                                 {['super_admin', 'admin_staff', 'admin_kurir', 'kurir_staff', 'sortir_kurir'].includes(user.role) && (
-                                    <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-                                        <Link to="/kurir" className="px-6 py-3.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-rc-bg rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2.5">
+                                    <motion.div whileTap={{ scale: 0.96 }}>
+                                        <Link to="/kurir" className="px-6 py-3.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-xl text-xs font-black uppercase flex items-center gap-2.5 inline-flex">
                                             <i className="fa-solid fa-truck text-sm"></i> Portal Kurir
                                         </Link>
                                     </motion.div>
@@ -261,8 +264,8 @@ export default function Profile() {
 
                                 {/* Shop Portal */}
                                 {['super_admin', 'admin_staff', 'shop_owner', 'shop_staff'].includes(user.role) && (
-                                    <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-                                        <Link to="/toko" className="px-6 py-3.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-rc-bg rounded-xl text-xs font-black uppercase transition-all flex items-center gap-2.5">
+                                    <motion.div whileTap={{ scale: 0.96 }}>
+                                        <Link to="/toko" className="px-6 py-3.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 rounded-xl text-xs font-black uppercase flex items-center gap-2.5 inline-flex">
                                             <i className="fa-solid fa-store text-sm"></i> Dashboard Niaga
                                         </Link>
                                     </motion.div>
@@ -289,46 +292,37 @@ export default function Profile() {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                             
                             {/* Card: Email */}
-                            <motion.div 
-                                whileHover={{ y: -4 }}
-                                className="bg-rc-card/75 border border-rc-main/15 rounded-2xl p-6 hover:border-rc-logo/30 transition-all duration-300 relative overflow-hidden flex items-center gap-5 shadow-lg group"
-                            >
-                                <div className="w-12 h-12 rounded-xl bg-rc-logo/5 flex items-center justify-center text-rc-logo border border-rc-logo/15 group-hover:bg-rc-logo group-hover:text-rc-bg transition-colors duration-300">
+                            <div className="bg-rc-card/75 border border-rc-main/15 rounded-2xl p-6 relative overflow-hidden flex items-center gap-5 shadow-lg">
+                                <div className="w-12 h-12 rounded-xl bg-rc-logo/10 text-rc-logo border border-rc-logo/15 flex items-center justify-center shrink-0">
                                     <i className="fa-solid fa-envelope-open-text text-lg"></i>
                                 </div>
                                 <div className="min-w-0 flex-1">
                                     <span className="text-[9px] font-bold text-rc-muted uppercase tracking-widest block">EMAIL VERIFIKASI</span>
                                     <span className="text-sm font-bold text-rc-main truncate block mt-0.5" title={user.email}>{user.email}</span>
                                 </div>
-                            </motion.div>
+                            </div>
 
                             {/* Card: WhatsApp */}
-                            <motion.div 
-                                whileHover={{ y: -4 }}
-                                className="bg-rc-card/75 border border-rc-main/15 rounded-2xl p-6 hover:border-rc-logo/30 transition-all duration-300 relative overflow-hidden flex items-center gap-5 shadow-lg group"
-                            >
-                                <div className="w-12 h-12 rounded-xl bg-teal-500/5 flex items-center justify-center text-teal-400 border border-teal-500/15 group-hover:bg-teal-500 group-hover:text-rc-bg transition-colors duration-300">
+                            <div className="bg-rc-card/75 border border-rc-main/15 rounded-2xl p-6 relative overflow-hidden flex items-center gap-5 shadow-lg">
+                                <div className="w-12 h-12 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/15 flex items-center justify-center shrink-0">
                                     <i className="fa-solid fa-phone-volume text-lg"></i>
                                 </div>
                                 <div>
                                     <span className="text-[9px] font-bold text-rc-muted uppercase tracking-widest block">NOMOR SELULER</span>
                                     <span className="text-sm font-bold text-rc-main block mt-0.5">{user.no_hp || 'Belum Ditentukan'}</span>
                                 </div>
-                            </motion.div>
+                            </div>
                         </div>
 
                         {/* Card: Address manifest (Styled like Boarding Pass) */}
-                        <motion.div 
-                            whileHover={{ y: -4 }}
-                            className="bg-gradient-to-br from-rc-card to-rc-card/80 border border-rc-main/15 rounded-[2rem] p-8 shadow-xl relative overflow-hidden"
-                        >
+                        <div className="bg-gradient-to-br from-rc-card to-rc-card/80 border border-rc-main/15 rounded-[2rem] p-8 shadow-xl relative overflow-hidden">
                             <div className="absolute top-0 right-12 w-20 h-20 bg-rc-logo/5 rounded-full blur-xl pointer-events-none"></div>
                             
                             <div className="flex justify-between items-center mb-6 pb-4 border-b border-rc-main/10">
                                 <h3 className="text-xs font-bold text-rc-muted uppercase tracking-widest flex items-center gap-3">
                                     <i className="fa-solid fa-map-location-dot text-rc-logo text-sm"></i> Manifest Domisili Pengiriman
                                 </h3>
-                                <Link to="/pengaturan" className="text-[10px] bg-rc-logo/10 text-rc-logo border border-rc-logo/30 px-3.5 py-1.5 rounded-lg hover:bg-rc-logo hover:text-rc-bg transition uppercase font-black tracking-widest">
+                                <Link to="/pengaturan" className="text-[10px] bg-rc-logo/10 text-rc-logo border border-rc-logo/30 px-3.5 py-1.5 rounded-lg font-black tracking-widest uppercase inline-block">
                                     Kelola Alamat
                                 </Link>
                             </div>
@@ -384,12 +378,12 @@ export default function Profile() {
                                     <p className="text-sm font-bold text-rc-muted max-w-sm mx-auto leading-relaxed">
                                         Anda belum menetapkan alamat utama untuk penjemputan logistik.
                                     </p>
-                                    <Link to="/pengaturan" className="inline-block px-6 py-2.5 bg-rc-main/5 border border-rc-main/15 text-rc-main hover:bg-rc-logo hover:text-rc-bg hover:border-rc-logo rounded-xl text-xs font-black uppercase transition-all">
+                                    <Link to="/pengaturan" className="inline-block px-6 py-2.5 bg-rc-main/5 border border-rc-main/15 text-rc-main rounded-xl text-xs font-black uppercase">
                                         Tambah Alamat Sekarang
                                     </Link>
                                 </div>
                             )}
-                        </motion.div>
+                        </div>
 
                         {/* Interactive Dynamic Stats Panel */}
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -399,7 +393,7 @@ export default function Profile() {
                                 { label: 'Status Member', value: user.role === 'user_premium' ? 'Premium Gold' : 'Standar', sub: 'Priority Tier', icon: 'fa-circle-up', color: 'text-yellow-400' },
                                 { label: 'Terdaftar Sejak', value: memberSince, sub: 'Verified User', icon: 'fa-calendar-day', color: 'text-emerald-400' },
                             ].map((stat, idx) => (
-                                <div key={idx} className="bg-rc-card/45 border border-rc-main/10 p-5 rounded-2xl hover:bg-rc-card/75 transition-colors relative overflow-hidden">
+                                <div key={idx} className="bg-rc-card/45 border border-rc-main/10 p-5 rounded-2xl relative overflow-hidden">
                                     <div className="absolute top-3 right-3 text-rc-muted/20 text-lg">
                                         <i className={`fa-solid ${stat.icon}`}></i>
                                     </div>
@@ -436,14 +430,14 @@ export default function Profile() {
                                     <Link 
                                         key={idx} 
                                         to={item.to} 
-                                        className="flex items-center justify-between p-4 rounded-2xl bg-rc-bg/50 border border-rc-main/10 hover:border-rc-logo/30 hover:bg-rc-card transition-all group relative overflow-hidden"
+                                        className="flex items-center justify-between p-4 rounded-2xl bg-rc-bg/50 border border-rc-main/10 relative overflow-hidden"
                                     >
                                         <div className="flex items-center gap-4 min-w-0">
-                                            <div className="w-10 h-10 rounded-xl bg-rc-main/5 flex items-center justify-center group-hover:text-rc-logo group-hover:bg-rc-logo/5 transition-colors text-rc-main shrink-0 border border-rc-main/10">
+                                            <div className="w-10 h-10 rounded-xl bg-rc-main/5 text-rc-logo border border-rc-main/10 flex items-center justify-center shrink-0">
                                                 <i className={`fa-solid ${item.icon} text-md`}></i>
                                             </div>
                                             <div className="min-w-0">
-                                                <span className="text-xs font-black uppercase text-rc-main group-hover:text-rc-logo transition-colors block leading-tight">{item.label}</span>
+                                                <span className="text-xs font-black uppercase text-rc-main block leading-tight">{item.label}</span>
                                                 <span className="text-[9px] font-medium text-rc-muted block mt-0.5 truncate">{item.desc}</span>
                                             </div>
                                         </div>
@@ -453,19 +447,17 @@ export default function Profile() {
 
                             <div className="mt-8 pt-6 border-t border-rc-main/10 space-y-3">
                                 <motion.button 
-                                    whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
                                     onClick={() => setIsSwitchModalOpen(true)} 
-                                    className="w-full py-4 rounded-xl bg-rc-logo/5 border border-rc-logo/30 text-rc-logo hover:bg-rc-logo hover:text-rc-bg transition-all text-xs font-black uppercase flex items-center justify-center gap-2.5 tracking-widest shadow-sm"
+                                    className="w-full py-4 rounded-xl bg-rc-logo/5 border border-rc-logo/30 text-rc-logo transition-all text-xs font-black uppercase flex items-center justify-center gap-2.5 tracking-widest shadow-sm"
                                 >
                                     <i className="fa-solid fa-repeat text-sm"></i> Beralih Identitas
                                 </motion.button>
                                 
                                 <motion.button 
-                                    whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.98 }}
                                     onClick={handleLogout} 
-                                    className="w-full py-4 rounded-xl bg-red-500/5 border border-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition-all text-xs font-black uppercase flex items-center justify-center gap-2.5 tracking-widest shadow-sm"
+                                    className="w-full py-4 rounded-xl bg-red-500/5 border border-red-500/20 text-red-400 transition-all text-xs font-black uppercase flex items-center justify-center gap-2.5 tracking-widest shadow-sm"
                                 >
                                     <i className="fa-solid fa-power-off text-sm"></i> Terminasi Sesi
                                 </motion.button>
@@ -493,4 +485,3 @@ export default function Profile() {
         </div>
     );
 }
-
