@@ -53,6 +53,7 @@ function LocationMarker({ position, setPosition, onPositionChange }) {
 export default function Settings() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('alamat_saya');
+    const [isSidebarExpanded, setIsSidebarExpanded] = useState(window.innerWidth >= 1024);
     const [addresses, setAddresses] = useState([]);
     const [showModal, setShowModal] = useState(false);
     const [formData, setFormData] = useState({ id: null, tag: 'Rumah', receiver_name: '', phone_number: '', full_address: '', note: '', latitude: null, longitude: null, region_id: '' });
@@ -411,53 +412,77 @@ export default function Settings() {
                 </div>
             </nav>
 
-            <main className="max-w-6xl mx-auto px-6 pt-12 relative z-10">
-
-                {/* Hero Settings Section */}
-                <div className="mb-10">
-                    <span className="text-[10px] font-bold tracking-[0.3em] text-rc-muted uppercase block mb-1">MANAJEMEN KONSOL</span>
-                    <h1 className="text-3xl md:text-5xl font-black uppercase text-rc-main tracking-tight flex items-center gap-4 leading-none">
-                        Kustomisasi Akun
-                    </h1>
-                    <p className="text-sm text-rc-muted max-w-2xl mt-3 leading-relaxed">
-                        Atur detail alamat pengiriman, preferensi bahasa aplikasi, hingga hubungi pusat resolusi terpadu kami kapan saja Anda membutuhkan.
-                    </p>
-                </div>
-
-                {/* Flex Layout: Sidebar Navigation + Content */}
-                <div className="flex flex-row items-start gap-4 md:gap-8">
+            <main className="max-w-6xl mx-auto px-4 sm:px-6 pt-8 relative z-10">
+                
+                {/* Unified Premium Frame */}
+                <div className="flex flex-row items-stretch border border-rc-main/15 rounded-[2rem] bg-rc-card/25 backdrop-blur-xl overflow-hidden shadow-2xl relative">
                     
-                    {/* Left Column: Responsive Premium Sidebar Navigation */}
-                    <div className="w-[72px] md:w-[80px] lg:w-[260px] shrink-0 sticky top-28">
-                        <div className="flex flex-col gap-3">
-                            {[
-                                { id: 'alamat_saya', label: 'Alamat Pengiriman', icon: 'fa-map-location-dot' },
-                                { id: 'informasi_akun', label: 'Informasi Akun', icon: 'fa-user-gear' },
-                                { id: 'bahasa', label: 'Bahasa', icon: 'fa-language' },
-                                { id: 'bantuan_cs', label: 'Bantuan CS', icon: 'fa-headset' },
-                                { id: 'pengaduan', label: 'Pusat Pengaduan', icon: 'fa-triangle-exclamation' },
-                                { id: 'kemitraan', label: 'Kemitraan & Staff', icon: 'fa-handshake' }
-                            ].map(tab => (
+                    {/* Left Column: Premium Sidebar Navigation */}
+                    <div className={`shrink-0 border-r border-rc-main/15 bg-rc-card/30 transition-all duration-300 ease-in-out py-6 ${isSidebarExpanded ? 'w-[200px] md:w-[260px]' : 'w-[72px] md:w-[80px]'}`}>
+                        <div className="flex flex-col gap-2">
+                            {/* Toggle Sidebar Button */}
+                            <div className="flex items-center justify-between mb-4 px-4">
+                                {isSidebarExpanded && (
+                                    <span className="text-[9px] font-black text-rc-muted uppercase tracking-[0.2em] animate-fade-in truncate">
+                                        KONSOL
+                                    </span>
+                                )}
                                 <motion.button 
-                                    key={tab.id}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => setActiveTab(tab.id)}
-                                    className={`w-full rounded-2xl flex items-center justify-center lg:justify-start gap-3.5 text-xs font-black uppercase tracking-wider transition-all shadow-md border ${
-                                        activeTab === tab.id 
-                                            ? 'bg-rc-logo text-rc-bg border-rc-logo shadow-lg shadow-rc-logo/10' 
-                                            : 'bg-rc-card/60 backdrop-blur-md border-rc-main/10 text-rc-muted'
-                                    } p-4.5 lg:px-5 lg:py-4`}
-                                    title={tab.label}
+                                    type="button"
+                                    whileTap={{ scale: 0.9 }}
+                                    onClick={() => setIsSidebarExpanded(!isSidebarExpanded)}
+                                    className="w-8 h-8 rounded-xl bg-rc-bg border border-rc-main/15 text-rc-logo flex items-center justify-center transition hover:bg-rc-logo/10 mx-auto"
+                                    title={isSidebarExpanded ? 'Perkecil Sidebar' : 'Perbesar Sidebar'}
                                 >
-                                    <i className={`fa-solid ${tab.icon} text-lg lg:text-sm shrink-0 ${activeTab === tab.id ? 'text-rc-bg' : 'text-rc-logo'}`}></i>
-                                    <span className="hidden lg:block truncate">{tab.label}</span>
+                                    <i className={`fa-solid ${isSidebarExpanded ? 'fa-chevron-left' : 'fa-chevron-right'} text-[10px]`}></i>
                                 </motion.button>
-                            ))}
+                            </div>
+
+                            {/* Menu Buttons */}
+                            <div className="flex flex-col gap-1">
+                                {[
+                                    { id: 'alamat_saya', label: 'Alamat Pengiriman', icon: 'fa-map-location-dot' },
+                                    { id: 'informasi_akun', label: 'Informasi Akun', icon: 'fa-user-gear' },
+                                    { id: 'bahasa', label: 'Bahasa', icon: 'fa-language' },
+                                    { id: 'bantuan_cs', label: 'Bantuan CS', icon: 'fa-headset' },
+                                    { id: 'pengaduan', label: 'Pusat Pengaduan', icon: 'fa-triangle-exclamation' },
+                                    { id: 'kemitraan', label: 'Kemitraan & Staff', icon: 'fa-handshake' }
+                                ].map(tab => (
+                                    <motion.button 
+                                        type="button"
+                                        key={tab.id}
+                                        whileTap={{ scale: 0.96 }}
+                                        onClick={() => setActiveTab(tab.id)}
+                                        className={`flex items-center transition-all gap-3.5 border-l-2 lg:border-l-4 ${
+                                            activeTab === tab.id 
+                                                ? 'bg-rc-logo/10 text-rc-logo border-l-rc-logo font-black' 
+                                                : 'text-rc-muted border-l-transparent hover:text-rc-main'
+                                        } ${isSidebarExpanded ? 'justify-start px-5 py-3.5' : 'justify-center py-4 px-4'}`}
+                                        title={tab.label}
+                                    >
+                                        <i className={`fa-solid ${tab.icon} shrink-0 ${activeTab === tab.id ? 'text-rc-logo' : 'text-rc-muted'} ${isSidebarExpanded ? 'text-sm' : 'text-lg'}`}></i>
+                                        {isSidebarExpanded && (
+                                            <span className="truncate text-[10px] md:text-[11px] font-bold uppercase tracking-wider block animate-fade-in">{tab.label}</span>
+                                        )}
+                                    </motion.button>
+                                ))}
+                            </div>
                         </div>
                     </div>
 
                     {/* Right Column: Tab Content */}
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 p-6 md:p-10">
+                        {/* Hero Settings Section */}
+                        <div className="mb-10 border-b border-rc-main/10 pb-6">
+                            <span className="text-[9px] font-bold tracking-[0.3em] text-rc-muted uppercase block mb-1">MANAJEMEN KONSOL</span>
+                            <h1 className="text-2xl md:text-4xl font-black uppercase text-rc-main tracking-tight flex items-center gap-4 leading-none">
+                                Kustomisasi Akun
+                            </h1>
+                            <p className="text-xs text-rc-muted max-w-2xl mt-3 leading-relaxed">
+                                Atur detail alamat pengiriman, preferensi bahasa aplikasi, hingga hubungi pusat resolusi terpadu kami kapan saja Anda membutuhkan.
+                            </p>
+                        </div>
+
                         <div className="w-full">
                             
                             {activeTab === 'informasi_akun' && user && (
